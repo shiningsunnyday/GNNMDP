@@ -7,3 +7,4 @@
 # Figure3 is generated through the module of "converge_analysis.py"
 # In addition, we explore the posibality of learning to solve the metrix dimension of graphs. The results may not be very strict. Using different graph models, one may produce different results.
 # The code simply provides an implementation possibility. This work is partially motivated by the work of (R. Sato, M. Yamada, H. Kashima. Learning to Find Hard Instances of Graph Problems. arxiv, 2019. URL:https://arxiv.org/pdf/1902.09700v1.pdf). Particularly, according to the background of MDP, we design the specific reward function,data structure, and the repair policy to solve the MDP. Furthermore, we introduce the graph neural networks to solve the MDP.
+# The experiments are all implemented in the environment of Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz 2.21GHz 16.0GB
