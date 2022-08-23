@@ -11,7 +11,9 @@ the corresponding negative tables are piut into the same directory "data". It is
 # # Example for solving MDP by algorithm2
 In this case, we set some sentences in the file of "cmopute_dim.py" as follows:
 (1)mod = 'gcn' ; (gcn, gin, sage, edge, tag are selected)
+
 (2)train = True
+
 (2) flag=2;  (1~6 numbers are selected)
 
 Then the algorithm takes dataset in the root directory "data/random_gnm/adj_natable/", and output the calculated result into the directory "results".
@@ -21,25 +23,33 @@ Then the algorithm takes dataset in the root directory "data/random_gnm/adj_nata
 
 In this case, we set some sentences in the file of "main_repair_only.py" or  the function of "compute_dim_repair_only.py"as follows:
 (1)mod = 'gcn' ; (gcn, gin, sage, edge, tag are selected)
+
 (2)train = False;
 
 Then the algorithm takes dataset in the root directory "data/random_gnm/adj_natable/", and output the calculated result into the directory "results".
 
 # Results generation
 (1) The reseults of Dim1~Dim5 in Tables 1 and Tables 3 are obtained through extensive calculations by the python program of  "cmopute_dim.py".
+
 (2)The results of Dim7 in Table1 and Table3 can be obtained by the Matlab Linear Programming Algorithm "solv.m" in the package of 
   "LP_algo.zip", taking as input the adjacency matrix of graphs.
+  
 (3) The results of Dim6 in Table 1 and Table 3 can be obtained by the python function of "main_repaire_only.py" or the function of "compute_dim_repair_only.py". 
+
 (4) According to Table1 and Table 3, the function of "comput_relative_ratio.py" gives the content of Table2 and Table4.
+
 (5) Delete the repair module in the function of "compute_dim.py", one can get the results of columns 2,6 in Table5. 
+
 The time columns 3,7 of Table5 can be got through "compute_ave_time.py". 
 The columns of 4,8 can be obtained by remaining the repair policy module only in "compute_dim.py". 
+
 (6)  Figure3 is generated through the module of "converge_analysis.py".
 
 # Note that
 (1)we explore the posibality of learning to solve the metric dimension of graphs. The results may not be very strict. 
 Using different graph models, one may produce different results. Our first attempt is to learn the metric dimensions of a graph.
  The implementation of the code is one of our attempts. The output results may be different. Perhaps, one can improve it further.
+ 
 (2) The code simply provides an implementation possibility. This work is partially motivated by the work of
  (R. Sato, M. Yamada, H. Kashima. Learning to Find Hard Instances of Graph Problems. arxiv, 2019. URL:https://arxiv.org/pdf/1902.09700v1.pdf). 
 Particularly, according to the background of MDP, we design the specific reward function,data structure, and the repair policy to solve the MDP. 
