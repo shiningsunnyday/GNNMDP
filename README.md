@@ -21,7 +21,7 @@ In this case, we set some sentences in the file of "cmopute_dim.py" as follows:
 
 Then the algorithm takes dataset in the root directory "data/random_gnm/adj_natable/", and output the calculated result into the directory "results".
 
-## Example for solving  by greedy repair policy only
+## Example for solving MDP  by greedy repair policy only
 
 In this case, we set some sentences in the file of "main_repair_only.py" or  the function of "compute_dim_repair_only.py"as follows:
 
