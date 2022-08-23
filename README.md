@@ -51,7 +51,7 @@ The columns of 4,8 can be obtained by remaining the repair policy module only in
 # Note
 
 (1) We explore the posibality of learning to solve the metric dimension of graphs. The results may not be very strict. 
-Using different graph models, one may produce different results. Our first attempt is to learn the metric dimensions of a graph.
+Using different GNN models, one may produce different results. Our first attempt is to learn the metric dimensions of a graph.
  The implementation of the code is one of our attempts. The output results may be different. Perhaps, one can improve it further.
  
 (2) The code simply provides an implementation possibility. This work is partially motivated by the work of
