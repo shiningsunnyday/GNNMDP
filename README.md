@@ -10,6 +10,7 @@ the corresponding negative tables are piut into the same directory "data". It is
 
 ## Example for solving MDP by algorithm2
 In this case, we set some sentences in the file of "cmopute_dim.py" as follows:
+
 (1)mod = 'gcn' ; (gcn, gin, sage, edge, tag are selected)
 
 (2)train = True
@@ -21,6 +22,7 @@ Then the algorithm takes dataset in the root directory "data/random_gnm/adj_nata
 ## Example for solving  by greedy repair policy only
 
 In this case, we set some sentences in the file of "main_repair_only.py" or  the function of "compute_dim_repair_only.py"as follows:
+
 (1)mod = 'gcn' ; (gcn, gin, sage, edge, tag are selected)
 
 (2)train = False;
