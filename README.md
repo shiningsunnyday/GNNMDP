@@ -48,7 +48,7 @@ The columns of 4,8 can be obtained by remaining the repair policy module only in
 
 (6)  Figure3 is generated through the module of "converge_analysis.py".
 
-# Note that
+# Note
 
 (1)we explore the posibality of learning to solve the metric dimension of graphs. The results may not be very strict. 
 Using different graph models, one may produce different results. Our first attempt is to learn the metric dimensions of a graph.
