@@ -34,7 +34,7 @@ Then the algorithm takes dataset in the root directory "data/random_gnm/adj_nata
 # Results generation
 (1) The reseults of Dim1~Dim5 in Tables 1 and Tables 3 are obtained through extensive calculations by the python program of  "cmopute_dim.py".
 
-(2)The results of Dim7 in Table1 and Table3 can be obtained by the Matlab Linear Programming Algorithm "solv.m" in the package of 
+(2)The results of Dim7 in Table1 and Table3 can be obtained by the Matlab Linear Programming Algorithm "LPsolv_main.m" in the package of 
   "LP_algo.zip", taking as input the adjacency matrix of graphs.
   
 (3) The results of Dim6 in Table 1 and Table 3 can be obtained by the python function of "main_repaire_only.py" or the function of "compute_dim_repair_only.py". 
@@ -61,4 +61,4 @@ Furthermore, we introduce the graph neural networks to solve the MDP.
 
 # Program running system
 
-The experiments are all implemented in the environment of Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz 2.21GHz 16.0GB. Pytorch, DGL are needed. 
+The experiments are all implemented in the environment of Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz 2.21GHz 16.0GB. Pytorch, DGL and Matlab are needed. 
