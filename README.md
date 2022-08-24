@@ -17,7 +17,7 @@ In this case, we set some sentences in the file of "cmopute_dim.py" as follows:
 
 (2)train = True
 
-(2) flag=2;  (1~6 numbers are selected)
+(3) flag=2;  (1~6 numbers are selected)
 
 Then the algorithm takes dataset in the root directory "data/random_gnm/adj_natable/", and output the calculated result into the directory "results".
 
