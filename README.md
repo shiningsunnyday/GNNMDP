@@ -77,4 +77,3 @@ doi = {https://doi.org/10.1016/j.amc.2022.127350},
 url = {https://www.sciencedirect.com/science/article/pii/S0096300322004246},
 author = {Jian Wu and Li Wang and Weihua Yang},
 }
-
