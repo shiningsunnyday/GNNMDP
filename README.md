@@ -62,3 +62,19 @@ Furthermore, we introduce the graph neural networks to solve the MDP.
 # Program running system
 
 The experiments are all implemented in the environment of Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz 2.21GHz 16.0GB. Pytorch, DGL and Matlab are needed. 
+
+# Cite
+
+If you compare with, build on, or use aspects of our framework, please cite the following:
+
+@article{WU2022127350,
+title = {Learning to compute the metric dimension of graphs},
+journal = {Applied Mathematics and Computation},
+volume = {432},
+pages = {127350},
+year = {2022},
+doi = {https://doi.org/10.1016/j.amc.2022.127350},
+url = {https://www.sciencedirect.com/science/article/pii/S0096300322004246},
+author = {Jian Wu and Li Wang and Weihua Yang},
+}
+
