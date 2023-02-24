@@ -32,6 +32,7 @@ parser.add_argument('--noisy_size', type=int, default=16,
                     help='Number of batch size for training.')
 parser.add_argument('--dropout', type=float, default=0.0,
                     help='Dropout rate (1 - keep probability).')
+parser.add_argument('--algo', type=str, default='algo2', choices=['gnn-mdp','algo2'],help='gnn-mdp or algorithm 2')
 
 args = parser.parse_args()
 
@@ -40,14 +41,14 @@ torch.manual_seed(args.seed)
 
 
 # if solve MDP using gcn module then set mod = 'gcn' etc
-mod = 'gin'  # gcn,gin,sage,edge,tag
+mod = 'gcn'  # gcn,gin,sage,edge,tag
 
 train = True
 
 import repair_method as rm
 
 
-flag=2
+flag=5
 if flag==1:
     dataset = 'powerlawtree'
     d=[1] #[10,9,8,7,6,5,4,3,2,1]
@@ -144,12 +145,12 @@ for i in d:
         if train:
             local_ave_time, local_reward_list, local_loss_list, local_best_ind, \
             local_best_ind_panel_set, local_max_reward, local_best_state,ntable \
-                = gs.gnn_solver(args,mod,datapath,dataset1,dataset2,ts,
+                = (gs.gnn_solver if args.algo=='algo2' else gs.gnn_mdp)(args,mod,datapath,dataset1,dataset2,ts,
                                 train=True,model_path=None)
         else:
             local_ave_time, local_reward_list, local_loss_list, local_best_ind, \
             local_best_ind_panel_set, local_max_reward,ntable\
-                = gs.gnn_solver(args, mod, datapath, dataset1, dataset2, ts,
+                = (gs.gnn_solver if args.algo=='algo2' else gs.gnn_mdp)(args, mod, datapath, dataset1, dataset2, ts,
                                 train=False, model_path=model_save_path_file)
 
         if global_reward < local_max_reward:
