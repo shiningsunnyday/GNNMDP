@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.sparse as sp
 import torch
+from collections import defaultdict
 
 
 def encode_onehot(labels):
@@ -156,6 +157,50 @@ def load_data_adj_ntable(path, dataset1,dataset2):
 
     return adj,ntable_dict
 
+def compute_etable(adj):
+    # assumes graph is connected, with bidirectional edges
+    assert adj.row.min() == 0
+    n = adj.row.max() + 1
+
+    def create_nr(adj):
+        s = set()
+        for (src, tgt) in zip(adj.row, adj.col):
+            s.add((src, tgt))
+        return s
+
+    etable = defaultdict(lambda: create_nr(adj))
+    m = 0
+    for i, j in zip(adj.row, adj.col):
+        etable[i] -= set([(i, j)])
+        etable[j] -= set([(i, j)])
+        m += 1
+    return etable, m
+
+def compute_edge_mask(G):
+    n = G.num_nodes()
+    mask = torch.zeros(n*n) # for directed pairs of vertices
+    vp_ids = set()
+    src, tgt = G.edges()
+    
+    for (i, j) in zip(src, tgt):
+        e = (n*i + j).item()
+        mask[e] = 1
+        vp_ids.add(e)
+
+    vp_dict = dict(zip(sorted(list(vp_ids)), range(len(vp_ids))))
+    m = G.num_edges()
+    
+
+    e_feats = torch.zeros(m)
+    feats = torch.zeros(n,m)
+
+    for (i, j) in zip(src, tgt):
+        e = vp_dict[(n*i + j).item()]
+        feats[i][e] = 1
+        feats[j][e] = 1
+        e_feats[e] = 1
+        
+    return mask, feats, e_feats
 
 def normalize(mx):
     """Row-normalize sparse matrix"""
@@ -179,7 +224,7 @@ def accuracy(output, labels):
 #     return correct / len(labels)
 
 def reward(set_vector, ntable):
-    PANEL = (len(ntable))
+    PANEL = (len(ntable))    
     reward_vector = []
     penal_vector = []
     for i in range(len(set_vector)):
@@ -193,6 +238,39 @@ def reward(set_vector, ntable):
         # # fun4
         M = len(temp_panel)
         # if len(set_vector[i])> len(ntable)-2 or M != 0:
+        temp_reward = 1. / (len(set_vector[i]) + PANEL * M)
+        # else:
+        #     temp_reward = 1. / (len(set_vector[i]))
+
+
+        reward_vector.append(temp_reward)
+        penal_vector.append(temp_panel)
+    local_max_reward = max(reward_vector)
+    local_best_ind = set_vector[reward_vector.index(local_max_reward)]
+    local_best_panel = penal_vector[reward_vector.index(local_max_reward)]
+
+    return reward_vector, \
+            penal_vector, \
+            local_best_ind, \
+            local_best_panel, \
+            local_max_reward
+
+def compute_mvc_reward(set_vector, etable):
+    PANEL = (len(etable))    
+    reward_vector = []
+    penal_vector = []
+    for i in range(len(set_vector)):
+        temp_panel = []
+        for index, value in enumerate(set_vector[i]):
+            if index == 0:
+                temp_panel = etable[value]
+            else:
+                temp_panel = temp_panel.intersection(etable[value])
+
+        # # fun4
+        M = len(temp_panel)
+        # if len(set_vector[i])> len(ntable)-2 or M != 0:
+        print(f"{M} unresolved edges")
         temp_reward = 1. / (len(set_vector[i]) + PANEL * M)
         # else:
         #     temp_reward = 1. / (len(set_vector[i]))
