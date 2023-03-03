@@ -6,6 +6,7 @@ import torch
 import numpy as np
 import json
 from models import utils as ut
+import matplotlib.pyplot as plt
 
 # Training settings
 parser = argparse.ArgumentParser()
@@ -14,7 +15,7 @@ parser.add_argument('--no-cuda', action='store_true', default=True,
 parser.add_argument('--fastmode', action='store_true', default=False,
                     help='Validate during training pass.')
 parser.add_argument('--seed', type=int, default=369, help='Random seed.')  # 456,13
-parser.add_argument('--epochs', type=int, default=500,
+parser.add_argument('--epochs', type=int, default=200,
                     help='Number of epochs to train.')
 parser.add_argument('--Early_stop', type=int, default=101,
                     help='Early_stop.')
@@ -142,6 +143,15 @@ for a, (dataset, datapath, dataset1, dataset2) in enumerate(ut.load_datapath(fla
         res_list.append(global_resolving_set)
         pan_list.append(global_panel_set)
         time_list.append(global_time)
+
+        plt.figure()
+        fig_output_filename1 = "/reward_{}_{}_{}.pdf".format(dataset, a, iter)
+        plt.plot(local_reward_list, label="Reward")
+        plt.xlabel('Episode')
+        plt.ylabel('Reward')
+        plt.title('Episode mean reward curve')
+        plt.savefig(pathname + fig_output_filename1)
+        plt.close()
 
     torch.save(global_state, model_save_path_file)
     # 每代运行结果

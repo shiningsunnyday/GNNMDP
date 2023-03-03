@@ -271,7 +271,8 @@ def compute_mvc_reward(set_vector, etable):
         M = len(temp_panel)
         # if len(set_vector[i])> len(ntable)-2 or M != 0:
         print(f"{M} unresolved edges")
-        temp_reward = 1. / (len(set_vector[i]) + PANEL * M)
+        temp_reward = -M
+        # temp_reward = 1. / (len(set_vector[i]) + PANEL * M)
         # else:
         #     temp_reward = 1. / (len(set_vector[i]))
 

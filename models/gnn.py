@@ -9,11 +9,19 @@ import torch.nn.functional as F
 from dgl.nn.pytorch import GraphConv,GATConv,SAGEConv,GINConv,EdgeConv,TAGConv,GINEConv
 from sklearn.linear_model import LogisticRegression
 from models import mlp
+from copy import deepcopy
 EPS = 1e-30
 
-def classify(feats):
-    clf=LogisticRegression().fit(feats,np.arange(len(feats)))
-    return clf.coef_ # (n classes, n features)
+def classify(feats, y=None):
+    if y == None:
+        y = np.arange(len(feats))
+    clf=LogisticRegression().fit(feats,y)
+    best_coef = deepcopy(clf.coef_)
+    best_intercept = deepcopy(clf.intercept_)
+    if best_coef.shape[0] == 1:
+        best_coef = np.concatenate((-best_coef/2, best_coef/2), axis=0)
+        best_intercept = np.array([-best_intercept[0]/2, best_intercept[0]/2])
+    return best_coef, best_intercept # (n classes, n features)
 
 # GCN layer base dgl
 class GCN(nn.Module):
@@ -93,31 +101,7 @@ class GCN(nn.Module):
                     temp_set.append(index)
             set_vector.append(temp_set)
         return set_vector, set_indicator
-
-    def mask_loss(self, output, epoch, edge_mask=None):
-        """
-        Handles node and edge-identity prediction
-        param: edge_mask is indexed by (i,j) in row-major order
-        param: output is masked output from GNN
-        edge_features assumed to be one-hot vector encoded in same order
-        """
-        
-        output = output.clone().detach()
-        if edge_mask:
-            # use masked nodes to predict all edge identities            
-            edge_output = torch.stack(map(lambda x,y: torch.cat((x,y))), product(output, output))
-            output = edge_output[edge_mask]
-        else:
-            # use masked nodes to predict all node identities
-            pass
-
-        best_coef = torch.from_numpy(classify(output)).detach().float()
-        loss = nn.CrossEntropyLoss()(output @ best_coef.T, torch.arange(len(output)))
-        mask_loss = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1].sum()
-
-        # return mask_loss
-        return loss + self.mask_c * mask_loss
-    
+  
     def loss(self, set_indicator, reward_vector, output, epoch):
         lp = self.lp_loss(output, set_indicator)
         loss = torch.FloatTensor(reward_vector) * lp
@@ -408,21 +392,23 @@ class GINE(nn.Module):
         param: output is masked output from GNN
         edge_features assumed to be one-hot vector encoded in same order
         """
-        
-        output = output.clone().detach()
+            
         if edge_mask != None:
             # use masked nodes to predict all edge identities
             cross_prod = list(product(output, output))            
-            edge_output = torch.stack(list(map(lambda x: torch.cat(x), cross_prod)))
-            output = edge_output[edge_mask == 1.]
+            output = torch.stack(list(map(lambda x: torch.cat(x), cross_prod)))
+            output_detach = output.clone().detach()
+            y = edge_mask.long()
         else:
             # use masked nodes to predict all node identities
-            pass
+            output_detach = output.clone().detach()
+            y = torch.arange(len(output_detach))
 
-        best_coef = torch.from_numpy(classify(output)).detach().float()
-        loss = nn.CrossEntropyLoss()(output @ best_coef.T, torch.arange(len(output)))
+        best_coef, best_intercept = classify(output_detach, y)
+        best_coef = torch.from_numpy(best_coef).detach().float()        
+        best_intercept = torch.from_numpy(best_intercept).detach().float()        
+        loss = nn.CrossEntropyLoss()(output @ best_coef.T + best_intercept, y)
         # mask_loss = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1].sum()
-
         # return mask_loss
         # return self.mask_c * mask_loss
         return loss 
