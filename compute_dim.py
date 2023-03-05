@@ -7,6 +7,7 @@ import numpy as np
 import json
 from models import utils as ut
 import matplotlib.pyplot as plt
+from copy import deepcopy
 
 # Training settings
 parser = argparse.ArgumentParser()
@@ -15,12 +16,12 @@ parser.add_argument('--no-cuda', action='store_true', default=True,
 parser.add_argument('--fastmode', action='store_true', default=False,
                     help='Validate during training pass.')
 parser.add_argument('--seed', type=int, default=369, help='Random seed.')  # 456,13
-parser.add_argument('--epochs', type=int, default=200,
+parser.add_argument('--epochs', type=int, default=100,
                     help='Number of epochs to train.')
 parser.add_argument('--Early_stop', type=int, default=101,
                     help='Early_stop.')
 #0.5
-parser.add_argument('--lr', type=float, default=0.01,
+parser.add_argument('--lr', type=float, default=0.001,
                     help='Initial learning rate.')
 parser.add_argument('--weight_decay', type=float, default=0.0,
                     help='Weight decay (L2 loss on parameters).')
@@ -37,6 +38,7 @@ parser.add_argument('--dropout', type=float, default=0.0,
 parser.add_argument('--algo', type=str, default='algo2', choices=['gnn-mdp','gnn-mvc','algo2'],help='gnn-mdp, gnn-mvc algorithm 2')
 parser.add_argument('--mask_c', type=float, default=.5,help='tradeoff between loss and mask for gnn-mdp')
 parser.add_argument('--num_iters', type=int, default=3,help='num iterations')
+parser.add_argument('--gnn_model', type=str, default='gcn', help='gnn model', choices=['gcn','gin','sage','edge','tag','gine'])
 parser.add_argument('--flag', type=int, required=True, help='flag')
 
 args = parser.parse_args()
@@ -57,8 +59,8 @@ if args.algo == 'algo2':
 
 # if solve MDP using gcn module then set mod = 'gcn' etc
 # if solve MVC use edge-feature model, e.g. 'gine
-mod = 'gine'  # gcn,gin,sage,edge,tag
-method_dir = f'results_{args.algo}/'
+mod = args.gnn_model  # gcn,gin,sage,edge,tag,gine for mvc
+method_dir = 'results_{}/'.format(args.algo)
 
 train = True
 
@@ -67,7 +69,7 @@ import repair_method as rm
 
 flag=args.flag
 
-for a, (dataset, datapath, dataset1, dataset2) in enumerate(ut.load_datapath(flag)):    
+for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(flag)):    
 
     # Save path folder for running results
     pathname = method_dir + '{}/{}/'.format(dataset,a)
@@ -157,7 +159,7 @@ for a, (dataset, datapath, dataset1, dataset2) in enumerate(ut.load_datapath(fla
     # 每代运行结果
 
     record_path= "/{}_{}_record.txt".format(dataset, mod)
-    f = open(pathname + record_path, 'w+')
+    f = open(pathname + record_path, 'a+')
     f.write('global_dim ={}\n'.format(global_dim))
     f.write('global_pan ={}\n'.format(global_pan))
     f.write('global_best_reward ={}\n'.
@@ -177,7 +179,12 @@ for a, (dataset, datapath, dataset1, dataset2) in enumerate(ut.load_datapath(fla
          format(str(global_loss_list)))
     f.write('best_seed ={}\n'.
          format(str(best_seed)))
-    f.write('args ={}\n'.format(json.dumps(args.__dict__)))
+    arg_dict = args.__dict__
+    try:
+
+        f.write('args ={}\n'.format(json.dumps(arg_dict)))
+    except:
+        breakpoint()
 
     f.close()
     print("Resolving set sample finished!")
@@ -188,10 +195,40 @@ for a, (dataset, datapath, dataset1, dataset2) in enumerate(ut.load_datapath(fla
         global_resolving_set = list(range(len(ntable)))
     r_set, dim = rm.repair_iter(args, global_resolving_set, ntable, iter)
     record_repair_path = "/{}_{}_record_opt.txt".format(dataset, mod)
-    f = open(pathname + record_repair_path, 'w+')
+    f = open(pathname + record_repair_path, 'a+')
     f.write('global_dim ={}\n'.format(dim))
     f.write('resolving_set ={}\n'.format(str(r_set)))
     f.close()
+
+    log_path = f'results_{args.algo}/logs.json'
+    
+    if os.path.exists(log_path):
+        f = open(log_path, 'r')
+        data = json.load(f)
+    else:
+        f = open(log_path, 'w+')
+        data = {'runs':[]}
+    
+    f.close()
+    dic = deepcopy(arg_dict)
+    dic['global_dim'] = global_dim
+    dic['global_pan'] = global_pan
+    dic['global_reward_list'] = global_reward_list
+    dic['metric_dimension_list'] = dim_list
+    dic['metric_resolving_set_list'] = res_list
+    dic['panel_set_list'] = pan_list
+    dic['global_loss_list'] = global_loss_list
+    dic['global_dim_opt'] = dim
+    dic['resolving_set_opt'] = r_set
+
+    f = open(log_path, 'w+')
+    data['runs'].append(dic)
+    try:
+        json.dump(data, f)
+    except:
+        breakpoint()
+    f.close()
+
     #'''
 
     # /////////////////////////////////////////////// solve MDP by greed only if needed

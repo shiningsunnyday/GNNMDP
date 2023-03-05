@@ -67,7 +67,7 @@ def load_datapath(flag):
             datapath = "data/random_watts/adj_natable/"
             dataset1 = "adj_100_{}_0.5.txt".format(a)
             dataset2 = "ntable_100_{}_0.5.txt".format(a)
-        ret.append((dataset, datapath, dataset1, dataset2))
+        ret.append((dataset, datapath, dataset1, dataset2, a))
     return ret
 
 def load_data(path="../data/cora/", dataset="cora"):
@@ -244,7 +244,7 @@ def reward(set_vector, ntable):
 
 
         reward_vector.append(temp_reward)
-        penal_vector.append(temp_panel)
+        penal_vector.append(list(temp_panel)) # for serializing
     local_max_reward = max(reward_vector)
     local_best_ind = set_vector[reward_vector.index(local_max_reward)]
     local_best_panel = penal_vector[reward_vector.index(local_max_reward)]
@@ -310,3 +310,13 @@ def sample2(batch_size, node_num, noisy_size):
     return s
 
 
+def sample_mask(y):
+    """
+    Generate a boolean mask for positives and equivalent amount of random negatives
+    """
+    pos_mask = (y == 1)
+    num_pos = pos_mask.sum()
+    ratio = (int)(len(y)/num_pos)
+    neg_mask = np.arange(len(y)) % ratio == 0
+    return pos_mask | neg_mask
+    

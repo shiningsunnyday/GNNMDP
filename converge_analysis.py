@@ -35,6 +35,8 @@ parser.add_argument('--noisy_size', type=int, default=16,
                     help='Number of batch size for training.')
 parser.add_argument('--dropout', type=float, default=0.0,
                     help='Dropout rate (1 - keep probability).')
+parser.add_argument('--algo', type=str, default='algo2', choices=['gnn-mdp','gnn-mvc','algo2'],help='gnn-mdp, gnn-mvc algorithm 2')
+
 
 args = parser.parse_args()
 
@@ -69,6 +71,7 @@ elif flag == 6:
     dataset = 'watts'
     d=[5,11,20,30,40,55,60,75,85,90]
 
+method_dir = f'results_{args.algo}/'
 
 for i in d:
     a = i
@@ -105,12 +108,12 @@ for i in d:
 
 
     # 运行结果保存路径文件夹
-    pathname = 'results/{}/{}/'.format(dataset,a)
+    pathname = method_dir + '{}/{}/'.format(dataset,a)
     tmep_path = os.path.exists(pathname)
     if not tmep_path:
         os.makedirs(pathname)
 
-    model_save_path = 'results/{}/{}/model_weights'.format(dataset,a)
+    model_save_path = method_dir + '{}/{}/model_weights'.format(dataset,a)
     tmep_path = os.path.exists(model_save_path)
     if not tmep_path:
         os.makedirs(model_save_path)
