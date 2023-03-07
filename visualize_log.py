@@ -4,11 +4,6 @@ from collections import defaultdict
 from scipy import interpolate
 import numpy as np
 
-path = './results_gnn-mdp/new_logs.json'
-f = open(path)
-dic = json.load(f)
-f.close()
-
 def smooth(scalar, weight=0.85):    
     last = scalar[0]
     smoothed = []
@@ -69,6 +64,8 @@ def vary_hparam(hparam, fixed={}, pool=lambda x:max(x)):
     """
     res = defaultdict(list)
     for run_dic in dic['runs']:
+        if hparam not in run_dic:
+            continue
         for k, v in fixed.items():
             if run_dic[k] != v: 
                 continue      
@@ -88,11 +85,8 @@ def vary_hparam(hparam, fixed={}, pool=lambda x:max(x)):
     res_v = [pool(res[k]) for k in res_keys]
     res_keys = list(map(str, res_keys))
     plt.bar(res_keys, res_v)
-    plt.title("masking strength vs average reward")
-    plt.xlabel("lambda")
-    plt.ylabel("1/(|S|+|V|*|NR(S))")
     for i, v in enumerate(res_v):
-     plt.text(i-0.25, v, str(round(v,3)), color='blue', fontweight='bold')
+     plt.text(i-0.25, v, str(round(v,4)), color='blue', fontweight='bold')
     print(res_keys, res_v)
     return fig
 
@@ -111,23 +105,49 @@ def pool_func(x):
         sum += inner_sum/len(best[flag])
     return sum/len(best)
 
-fig = vary_hparam("mask_c", {
+path = './results_gnn-mdp/new_logs.json'
+f = open(path)
+dic = json.load(f)
+f.close()
+
+# fig = vary_hparam("mask_c", {
+#     "lr": 0.01, 
+#     'algo': 'gnn-mdp',
+#     'epochs': 1000,
+#     'num_iters': 1,
+#     'gnn_model': 'gcn',
+# }, pool=pool_func)
+# plt.title("average reward vs masking strength")
+# plt.xlabel("lambda")
+# plt.ylabel("1/(|S|+|V|*|NR(S))")
+# fig.savefig("./mask_c_new.png")
+# fig.clear()
+
+# fig = vary_hparam("lr", {
+#     'algo': 'algo2',
+#     'epochs': 100,
+#     'num_iters': 10,
+#     'gnn_model': 'gcn'
+# }, pool=pool_func)
+# plt.title("average reward vs learning rate")
+# plt.xlabel("learning rate")
+# plt.ylabel("1/(|S|+|V|*|NR(S))")
+# fig.savefig("./lr_algo2.png")
+# fig.clear()
+
+fig = vary_hparam("num_hidden_layers", {
     "lr": 0.01, 
     'algo': 'gnn-mdp',
+    'mask_c': 3,
     'epochs': 1000,
     'num_iters': 1,
     'gnn_model': 'gcn',
 }, pool=pool_func)
-fig.savefig("./mask_c_new.png")
-
-# fig = vary_hparam("lr", {
-#     'algo': 'algo2',
-#     'epochs': 500,
-#     'num_iters': 3,
-#     'gnn_model': 'gcn',
-#     'mask_c': 3.0
-# }, pool=pool_func)
-# fig.savefig("./lr_algo2.png")
+plt.title("average reward vs num conv layers")
+plt.xlabel("num conv layers")
+plt.ylabel("1/(|S|+|V|*|NR(S))")
+fig.savefig("./num_hidden_layers.png")
+fig.clear()
 
 # fig = plot_runs('mask_c', fixed={
 #     "lr": 0.01, 
