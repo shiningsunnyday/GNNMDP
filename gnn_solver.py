@@ -75,7 +75,7 @@ def gnn_mdp(args,mod,datapath,dataset1,dataset2,ts,train=True,model_path=None):
                          input_dim, hidden_dim, output_dim)
     elif mod == 'gcn':
         model = gnn.GCN(in_feats, hid_feats, out_feats, num_layers,
-                        input_dim, hidden_dim, output_dim, mask_c=args.mask_c)
+                        input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
     elif mod == 'gat':
         num_heads = 3
         model = gnn.GAT(in_feats, hid_feats, out_feats, num_heads,

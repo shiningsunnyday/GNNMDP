@@ -27,7 +27,7 @@ def classify(feats, y=None):
 # GCN layer base dgl
 class GCN(nn.Module):
     def __init__(self, in_feats, hid_feats, out_feats,num_layers,
-                 input_dim, hidden_dim, output_dim, mask_c=.0):
+                 input_dim, hidden_dim, output_dim, num_hidden_layers=2, mask_c=.0):
         super(GCN,self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
@@ -36,13 +36,19 @@ class GCN(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
+        self.num_hidden_layers = num_hidden_layers
         self.do_mask = mask_c > .0
 
         # 实例化SAGEConve，in_feats是输入特征的维度，out_feats是输出特征的维度，aggregator_type是聚合函数的类型
+        
         self.conv1 = GraphConv(self.in_feats, self.hid_feats, norm='both', weight=True, bias=True,
                                      activation=None, allow_zero_in_degree=False)
-        self.conv2 = GraphConv(self.hid_feats, out_feats, norm='both', weight=True, bias=True,
-                                     activation=None, allow_zero_in_degree=False)
+
+        for i in range(1, num_hidden_layers+1):
+            setattr(self, f"conv{i}", GraphConv(hid_feats if i > 1 else in_feats, 
+                                                hid_feats if i < num_hidden_layers else out_feats, 
+                                                norm='both', weight=True, bias=True, activation=None, allow_zero_in_degree=False))
+
         self.mlp = mlp.MLP(self.num_layers, self.input_dim, self.hidden_dim, self.output_dim)
 
         if self.do_mask:            
@@ -52,12 +58,12 @@ class GCN(nn.Module):
     def forward(self, graph, inputs):
         # 输入是节点的特征
         with graph.local_scope():
-            h = self.conv1(graph, inputs)
-            h = F.relu(h)
-            h = F.dropout(h, 0.5, training=self.training)
-            h = self.conv2(graph, h)
-            h = F.relu(h)
-            h = F.dropout(h, 0.5, training=self.training)
+            h = inputs
+            for i in range(1, self.num_hidden_layers+1):
+                h = getattr(self, f"conv{i}")(graph, h)
+                h = F.relu(h)
+                h = F.dropout(h, 0.5, training=self.training)
+
             h = self.mlp(h)
             if self.do_mask:
                 mask_ = F.gumbel_softmax(self.mask.weight,hard=True)[:, :1].T
