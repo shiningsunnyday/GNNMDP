@@ -1,0 +1,40 @@
+name: gnnmdp_env
+channels:
+  - defaults
+dependencies:
+  - ca-certificates=2023.01.10=hecd8cb5_0
+  - certifi=2022.12.7=py37hecd8cb5_0
+  - libffi=3.4.2=hecd8cb5_6
+  - ncurses=6.4=hcec6c5f_0
+  - openssl=1.1.1t=hca72f7f_0
+  - pip=22.3.1=py37hecd8cb5_0
+  - python=3.7.16=h218abb5_0
+  - readline=8.2=hca72f7f_0
+  - setuptools=65.6.3=py37hecd8cb5_0
+  - sqlite=3.40.1=h880c91c_0
+  - tk=8.6.12=h5d9f67b_0
+  - wheel=0.38.4=py37hecd8cb5_0
+  - xz=5.2.10=h6c40b1e_1
+  - zlib=1.2.13=h4dc903c_0
+  - pip:
+    - cffi==1.15.1
+    - charset-normalizer==3.0.1
+    - dgl==1.0.1
+    - idna==3.4
+    - joblib==1.2.0
+    - mip==1.15.0
+    - networkx==2.6.3
+    - numpy==1.21.6
+    - psutil==5.9.4
+    - pycparser==2.21
+    - requests==2.28.2
+    - scikit-learn==1.0.2
+    - scipy==1.7.3
+    - six==1.16.0
+    - sklearn==0.0.post1
+    - threadpoolctl==3.1.0
+    - torch==1.13.1
+    - tqdm==4.64.1
+    - typing-extensions==4.5.0
+    - urllib3==1.26.14
+prefix: /opt/anaconda3/envs/gnnmdp_env
