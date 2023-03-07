@@ -47,14 +47,14 @@ np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 
 if args.algo == 'algo2':
-    args.lr = 0.001
+    # args.lr = 0.001
     args.batch_size = 32
-    args.epochs = 500 # 100
+    args.epochs = 100
     args.seed = 369
     args.hidden = 32
     args.noisy_size = 16
     args.nclass = 1
-    args.num_iters = 3 # 10
+    args.num_iters = 10
     
 
 # if solve MDP using gcn module then set mod = 'gcn' etc
@@ -180,6 +180,7 @@ for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(
     f.write('best_seed ={}\n'.
          format(str(best_seed)))
     arg_dict = args.__dict__
+    arg_dict['a'] = a
     try:
 
         f.write('args ={}\n'.format(json.dumps(arg_dict)))
@@ -200,7 +201,7 @@ for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(
     f.write('resolving_set ={}\n'.format(str(r_set)))
     f.close()
 
-    log_path = f'results_{args.algo}/logs.json'
+    log_path = f'results_{args.algo}/new_logs.json'
     
     if os.path.exists(log_path):
         f = open(log_path, 'r')
