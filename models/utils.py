@@ -15,7 +15,7 @@ def encode_onehot(labels):
 def load_datapath(flag):
     if flag==1:
         dataset = 'powerlawtree'
-        d=[1] #[10,9,8,7,6,5,4,3,2,1]
+        d=[10,9,8,7,6,5,4,3,2,1]
     elif flag==2:
         dataset = 'gnm'
         d=[250,300,352,410,450,520,605,650,700,800]
@@ -228,12 +228,10 @@ def reward(set_vector, ntable):
     reward_vector = []
     penal_vector = []
     for i in range(len(set_vector)):
-        temp_panel = []
+        temp_panel = set(range((PANEL*(PANEL-1))//2))
+        
         for index, value in enumerate(set_vector[i]):
-            if index == 0:
-                temp_panel = ntable[value]
-            else:
-                temp_panel = temp_panel.intersection(ntable[value])
+            temp_panel = temp_panel.intersection(ntable[value])
 
         # # fun4
         M = len(temp_panel)
