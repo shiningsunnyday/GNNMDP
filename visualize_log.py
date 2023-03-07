@@ -4,7 +4,7 @@ from collections import defaultdict
 from scipy import interpolate
 import numpy as np
 
-path = './results_gnn-mdp/logs.json'
+path = './results_gnn-mdp/new_logs.json'
 f = open(path)
 dic = json.load(f)
 f.close()
@@ -23,7 +23,7 @@ def plot_runs(hparam, fixed={}):
     """
     fixed: dic of hparams to fix
     hparam: key of hparam to vary
-    plot avg(reward) over datasets
+    plot (hparam value, avg(reward))
     """
     res = {}
     best_res = defaultdict(int)
@@ -64,6 +64,7 @@ def vary_hparam(hparam, fixed={}, pool=lambda x:max(x)):
     """
     fixed: dic of hparams to fix
     hparam: key of hparam to vary
+    pool: takes in list of run_dics for hparam value, outputs number
     plot avg(reward) over datasets
     """
     res = defaultdict(list)
@@ -76,29 +77,63 @@ def vary_hparam(hparam, fixed={}, pool=lambda x:max(x)):
         if len(rewards) != run_dic['epochs']: 
             continue
         
-        res[run_dic[hparam]] += [max(rewards)]
+        res[run_dic[hparam]] += [run_dic]
 
     fig = plt.figure()        
-    res_keys = list(res.keys())
+    res_keys = sorted(list(res.keys()))    
+
+    for k in res_keys:
+        print(f"pooling over {len(res[k])} runs for {hparam}={k}")
+        
     res_v = [pool(res[k]) for k in res_keys]
-    str_labels = list(map(str, res_keys))
-    plt.bar(str_labels, res_v)
+    res_keys = list(map(str, res_keys))
+    plt.bar(res_keys, res_v)
+    plt.title("masking strength vs average reward")
+    plt.xlabel("lambda")
+    plt.ylabel("1/(|S|+|V|*|NR(S))")
+    for i, v in enumerate(res_v):
+     plt.text(i-0.25, v, str(round(v,3)), color='blue', fontweight='bold')
+    print(res_keys, res_v)
     return fig
 
-# fig = vary_hparam("mask_c", {
+def pool_func(x):
+    best = defaultdict(lambda: defaultdict(lambda: 0.))
+    for dic in x:
+        a = dic['a']
+        flag = dic['flag']
+        best[flag][a] = max(best[flag][a], max(dic['global_reward_list']))
+    
+    sum = 0
+    for flag in best:
+        inner_sum = 0
+        for a in best[flag]:
+            inner_sum += best[flag][a]
+        sum += inner_sum/len(best[flag])
+    return sum/len(best)
+
+fig = vary_hparam("mask_c", {
+    "lr": 0.01, 
+    'algo': 'gnn-mdp',
+    'epochs': 1000,
+    'num_iters': 1,
+    'gnn_model': 'gcn',
+}, pool=pool_func)
+fig.savefig("./mask_c_new.png")
+
+# fig = vary_hparam("lr", {
+#     'algo': 'algo2',
+#     'epochs': 500,
+#     'num_iters': 3,
+#     'gnn_model': 'gcn',
+#     'mask_c': 3.0
+# }, pool=pool_func)
+# fig.savefig("./lr_algo2.png")
+
+# fig = plot_runs('mask_c', fixed={
 #     "lr": 0.01, 
 #     'algo': 'gnn-mdp',
 #     'epochs': 1000,
-#     'num_iters': 1
+#     'num_iters': 1,
+#     'gnn_model': 'gcn',
 # })
-# fig.savefig("./mask_c.png")
-
-fig = plot_runs('mask_c', fixed={
-    "lr": 0.01, 
-    'algo': 'gnn-mdp',
-    'epochs': 500,
-    'num_iters': 1,
-    'gnn_model': 'gcn',
-    'flag': 5
-})
-fig.savefig("./interpolate_runs.png")
+# fig.savefig("./interpolate_runs.png")
