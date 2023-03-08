@@ -136,7 +136,7 @@ class GCN(nn.Module):
                     temp_set.append(index)
             set_vector.append(temp_set)
         return set_vector, set_indicator
-  
+
     def loss(self, set_indicator, reward_vector, output, epoch):
         lp = self.lp_loss(output, set_indicator)
         loss = torch.FloatTensor(reward_vector) * lp
@@ -217,7 +217,7 @@ class GAT(nn.Module):
 
 class SAGE(nn.Module):
     def __init__(self, in_feats, hid_feats, out_feats,aggregator_type,
-                 num_layers, input_dim, hidden_dim, output_dim):
+                 num_layers, input_dim, hidden_dim, output_dim, num_hidden_layers=2, mask_c=.0):
         super(SAGE,self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
@@ -227,24 +227,65 @@ class SAGE(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
+        self.num_hidden_layers = num_hidden_layers
+        self.do_mask = mask_c > .0        
 
-        self.sage1 = SAGEConv(self.in_feats, self.hid_feats, self.aggregator_type,
-                              feat_drop=0.5, bias=True, norm=None,activation=None)
-        self.sage2 = SAGEConv(self.hid_feats, self.out_feats, self.aggregator_type,
-                              feat_drop=0.5, bias=True, norm=None,activation=None)
+        for i in range(1, num_hidden_layers+1):
+            setattr(self, f"sage{i}", SAGEConv(hid_feats if i > 1 else in_feats, 
+                                                hid_feats if i < num_hidden_layers else out_feats, 
+                                                self.aggregator_type, feat_drop=0.5, bias=True, norm=None,activation=None))
+       
         self.mlp = mlp.MLP(self.num_layers, self.input_dim, self.hidden_dim, self.output_dim)
+
+        if self.do_mask:            
+            self.mask = nn.Embedding(output_dim,2,_weight=torch.log(torch.rand(output_dim,2)))
+            self.mask_c = mask_c        
 
     def forward(self, graph, inputs):
         # 输入是节点的特征
         with graph.local_scope():
-            h = self.sage1(graph, inputs)
-            h = F.relu(h)
-            h = F.dropout(h, 0.5, training=self.training)
-            h = self.sage2(graph, h)
-            h = F.relu(h)
-            h = F.dropout(h, 0.5, training=self.training)
+            h = inputs
+            for i in range(1, self.num_hidden_layers+1):
+                h = getattr(self, f"sage{i}")(graph, h)
+                h = F.relu(h)
+                h = F.dropout(h, 0.5, training=self.training)
+
             h = self.mlp(h)
+            if self.do_mask:
+                mask_ = F.gumbel_softmax(self.mask.weight,hard=True)[:, :1].T
+                h = h * mask_
         return h
+
+    def mask_loss(self, output, epoch, edge_mask=None):
+        """
+        Handles node and edge-identity prediction
+        param: edge_mask is indexed by (i,j) in row-major order
+        param: output is masked output from GNN
+        edge_features assumed to be one-hot vector encoded in same order
+        """
+            
+        if edge_mask != None:
+            # use masked nodes to predict all edge identities
+            cross_prod = list(product(output, output))            
+            output = torch.stack(list(map(lambda x: torch.cat(x), cross_prod)))
+            output_detach = output.clone().detach()
+            y = edge_mask.long()
+            sample_mask = ut.sample_mask(y)
+        else:
+            # use masked nodes to predict all node identities
+            output_detach = output.clone().detach()
+            y = torch.arange(len(output_detach))
+            sample_mask = (y >= 0)
+
+        best_coef, best_intercept = classify(output_detach[sample_mask], y[sample_mask])
+        best_coef = torch.from_numpy(best_coef).detach().float()        
+        best_intercept = torch.from_numpy(best_intercept).detach().float()        
+        loss = nn.CrossEntropyLoss()(output @ best_coef.T + best_intercept, y)
+        mask_loss = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1].sum()
+        # return mask_loss
+        # return self.mask_c * mask_loss
+        # return loss 
+        return loss + self.mask_c * mask_loss
 
     def decide_action(self, output, batch_size):
         set_vector = []
@@ -266,6 +307,17 @@ class SAGE(nn.Module):
 
         return set_vector, set_indicator
 
+    def decide_action_mask(self, output, batch_size):
+        set_indicator = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1]
+        set_vector = []
+        for i in range(batch_size):
+            temp_set = []
+            for index, value in enumerate(set_indicator[:, i]):
+                if value == 1.:
+                    temp_set.append(index)
+            set_vector.append(temp_set)
+        return set_vector, set_indicator
+  
     def loss(self, set_indicator, reward_vector, output, epoch):
         lp = self.lp_loss(output, set_indicator)
         loss = torch.FloatTensor(reward_vector) * lp
@@ -300,7 +352,7 @@ class GIN(nn.Module):
             setattr(self, f"gin{i}", GINConv(getattr(self, f"mlp_fun{i}"), aggregator_type, init_eps=0, learn_eps=True))
 
         self.mlp = mlp.MLP(self.num_layers, self.input_dim, self.hidden_dim, self.output_dim)
-        
+
         if self.do_mask:            
             self.mask = nn.Embedding(output_dim,2,_weight=torch.log(torch.rand(output_dim,2)))
             self.mask_c = mask_c
@@ -481,7 +533,7 @@ class GINE(nn.Module):
 
 
 class EDGE(nn.Module):
-    def __init__(self, in_feats, hid_feats,out_feats,num_layers, input_dim, hidden_dim, output_dim):
+    def __init__(self, in_feats, hid_feats,out_feats,num_layers, input_dim, hidden_dim, output_dim, num_hidden_layers=2, mask_c=.0):
         super(EDGE,self).__init__()
         self.in_feats = in_feats
         self.out_feats = out_feats
@@ -490,22 +542,65 @@ class EDGE(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
+        self.num_hidden_layers = num_hidden_layers
+        self.do_mask = mask_c > .0        
 
-        self.edge1 = EdgeConv(self.in_feats, self.hid_feats, batch_norm=False, allow_zero_in_degree=False)
-        self.edge2 = EdgeConv(self.hid_feats, self.out_feats, batch_norm=False, allow_zero_in_degree=False)
+        for i in range(1, num_hidden_layers+1):
+            setattr(self, f"edge{i}", EdgeConv(hid_feats if i > 1 else in_feats, 
+                                                hid_feats if i < num_hidden_layers else out_feats, 
+                                                batch_norm=False, allow_zero_in_degree=False))
+
         self.mlp = mlp.MLP(self.num_layers, self.input_dim, self.hidden_dim, self.output_dim)
+        if self.do_mask:            
+            self.mask = nn.Embedding(output_dim,2,_weight=torch.log(torch.rand(output_dim,2)))
+            self.mask_c = mask_c        
 
     def forward(self, graph, inputs):
         # 输入是节点的特征
         with graph.local_scope():
-            h = self.edge1(graph, inputs)
-            h = F.relu(h)
-            h = F.dropout(h, 0.5, training=self.training)
-            h = self.edge2(graph, h)
-            h = F.relu(h)
-            h = F.dropout(h, 0.5, training=self.training)
+            h = inputs
+            for i in range(1, self.num_hidden_layers+1):
+                h = getattr(self, f"edge{i}")(graph, h)
+                h = F.relu(h)
+                h = F.dropout(h, 0.5, training=self.training)
+
             h = self.mlp(h)
+            if self.do_mask:
+                mask_ = F.gumbel_softmax(self.mask.weight,hard=True)[:, :1].T
+                h = h * mask_
         return h
+
+    def mask_loss(self, output, epoch, edge_mask=None):
+        """
+        Handles node and edge-identity prediction
+        param: edge_mask is indexed by (i,j) in row-major order
+        param: output is masked output from GNN
+        edge_features assumed to be one-hot vector encoded in same order
+        """
+            
+        if edge_mask != None:
+            # use masked nodes to predict all edge identities
+            cross_prod = list(product(output, output))            
+            output = torch.stack(list(map(lambda x: torch.cat(x), cross_prod)))
+            output_detach = output.clone().detach()
+            y = edge_mask.long()
+            sample_mask = ut.sample_mask(y)
+        else:
+            # use masked nodes to predict all node identities
+            output_detach = output.clone().detach()
+            y = torch.arange(len(output_detach))
+            sample_mask = (y >= 0)
+
+        best_coef, best_intercept = classify(output_detach[sample_mask], y[sample_mask])
+        best_coef = torch.from_numpy(best_coef).detach().float()        
+        best_intercept = torch.from_numpy(best_intercept).detach().float()        
+        loss = nn.CrossEntropyLoss()(output @ best_coef.T + best_intercept, y)
+        mask_loss = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1].sum()
+        # return mask_loss
+        # return self.mask_c * mask_loss
+        # return loss 
+        return loss + self.mask_c * mask_loss
+
 
     def decide_action(self, output, batch_size):
         set_vector = []
@@ -527,6 +622,18 @@ class EDGE(nn.Module):
 
         return set_vector, set_indicator
 
+    def decide_action_mask(self, output, batch_size):
+        set_indicator = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1]
+        set_vector = []
+        for i in range(batch_size):
+            temp_set = []
+            for index, value in enumerate(set_indicator[:, i]):
+                if value == 1.:
+                    temp_set.append(index)
+            set_vector.append(temp_set)
+        return set_vector, set_indicator
+
+
     def loss(self, set_indicator, reward_vector, output, epoch):
         lp = self.lp_loss(output, set_indicator)
         loss = torch.FloatTensor(reward_vector) * lp
@@ -540,7 +647,7 @@ class EDGE(nn.Module):
 
 
 class TAG(nn.Module):
-    def __init__(self, in_feats, hid_feats,out_feats,num_layers, input_dim, hidden_dim, output_dim):
+    def __init__(self, in_feats, hid_feats,out_feats,num_layers, input_dim, hidden_dim, output_dim, num_hidden_layers=2, mask_c=.0):
         super(TAG,self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
@@ -549,22 +656,64 @@ class TAG(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
+        self.num_hidden_layers = num_hidden_layers
+        self.do_mask = mask_c > .0        
 
-        self.tag1 = TAGConv(self.in_feats, self.hid_feats, k=1, bias=True, activation=None)
-        self.tag2 = TAGConv(self.hid_feats, self.hid_feats, k=1, bias=True, activation=None)
+        for i in range(1, num_hidden_layers+1):
+            setattr(self, f"tag{i}", TAGConv(hid_feats if i > 1 else in_feats, hid_feats if i < num_hidden_layers else out_feats, k=1, bias=True, activation=None))
+
         self.mlp = mlp.MLP(self.num_layers, self.input_dim, self.hidden_dim, self.output_dim)
+
+        if self.do_mask:            
+            self.mask = nn.Embedding(output_dim,2,_weight=torch.log(torch.rand(output_dim,2)))
+            self.mask_c = mask_c
 
     def forward(self, graph, inputs):
         # 输入是节点的特征
         with graph.local_scope():
-            h = self.tag1(graph, inputs)
-            h = F.relu(h)
-            h = F.dropout(h, 0.5, training=self.training)
-            h = self.tag2(graph, h)
-            h = F.relu(h)
-            h = F.dropout(h, 0.5, training=self.training)
+            h = inputs
+            for i in range(1, self.num_hidden_layers+1):
+                h = getattr(self, f"tag{i}")(graph, h)
+                h = F.relu(h)
+                h = F.dropout(h, 0.5, training=self.training)
+
             h = self.mlp(h)
+            if self.do_mask:
+                mask_ = F.gumbel_softmax(self.mask.weight,hard=True)[:, :1].T
+                h = h * mask_
         return h
+
+    def mask_loss(self, output, epoch, edge_mask=None):
+        """
+        Handles node and edge-identity prediction
+        param: edge_mask is indexed by (i,j) in row-major order
+        param: output is masked output from GNN
+        edge_features assumed to be one-hot vector encoded in same order
+        """
+            
+        if edge_mask != None:
+            # use masked nodes to predict all edge identities
+            cross_prod = list(product(output, output))            
+            output = torch.stack(list(map(lambda x: torch.cat(x), cross_prod)))
+            output_detach = output.clone().detach()
+            y = edge_mask.long()
+            sample_mask = ut.sample_mask(y)
+        else:
+            # use masked nodes to predict all node identities
+            output_detach = output.clone().detach()
+            y = torch.arange(len(output_detach))
+            sample_mask = (y >= 0)
+
+        best_coef, best_intercept = classify(output_detach[sample_mask], y[sample_mask])
+        best_coef = torch.from_numpy(best_coef).detach().float()        
+        best_intercept = torch.from_numpy(best_intercept).detach().float()        
+        loss = nn.CrossEntropyLoss()(output @ best_coef.T + best_intercept, y)
+        mask_loss = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1].sum()
+        # return mask_loss
+        # return self.mask_c * mask_loss
+        # return loss 
+        return loss + self.mask_c * mask_loss
+
 
     def decide_action(self, output, batch_size):
         set_vector = []
@@ -584,6 +733,17 @@ class TAG(nn.Module):
                     temp_set.append(index)
             set_vector.append(temp_set)
 
+        return set_vector, set_indicator
+
+    def decide_action_mask(self, output, batch_size):
+        set_indicator = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1]
+        set_vector = []
+        for i in range(batch_size):
+            temp_set = []
+            for index, value in enumerate(set_indicator[:, i]):
+                if value == 1.:
+                    temp_set.append(index)
+            set_vector.append(temp_set)
         return set_vector, set_indicator
 
     def loss(self, set_indicator, reward_vector, output, epoch):

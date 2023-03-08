@@ -72,7 +72,7 @@ def gnn_mdp(args,mod,datapath,dataset1,dataset2,ts,train=True,model_path=None):
     if mod == 'sage':
         aggregator_type = 'gcn'
         model = gnn.SAGE(in_feats, hid_feats, out_feats, aggregator_type, num_layers,
-                         input_dim, hidden_dim, output_dim)
+                         input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
     elif mod == 'gcn':
         model = gnn.GCN(in_feats, hid_feats, out_feats, num_layers,
                         input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
@@ -86,9 +86,9 @@ def gnn_mdp(args,mod,datapath,dataset1,dataset2,ts,train=True,model_path=None):
         model = gnn.GIN(in_feats, hid_feats, out_feats, aggregator_type,
                         fun_num_layers, num_layers, input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
     elif mod == 'edge':
-        model = gnn.EDGE(in_feats, hid_feats,out_feats,num_layers, input_dim, hidden_dim, output_dim)
+        model = gnn.EDGE(in_feats, hid_feats,out_feats,num_layers, input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
     elif mod == 'tag':
-        model = gnn.TAG(in_feats, hid_feats, out_feats, num_layers, input_dim, hidden_dim, output_dim)
+        model = gnn.TAG(in_feats, hid_feats, out_feats, num_layers, input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
     if train:
         step_size, gamma = 50, 0.5  # 50,0.5
         optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
