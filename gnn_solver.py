@@ -84,7 +84,7 @@ def gnn_mdp(args,mod,datapath,dataset1,dataset2,ts,train=True,model_path=None):
         aggregator_type = 'mean'
         fun_num_layers = 3
         model = gnn.GIN(in_feats, hid_feats, out_feats, aggregator_type,
-                        fun_num_layers, num_layers, input_dim, hidden_dim, output_dim)
+                        fun_num_layers, num_layers, input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
     elif mod == 'edge':
         model = gnn.EDGE(in_feats, hid_feats,out_feats,num_layers, input_dim, hidden_dim, output_dim)
     elif mod == 'tag':
