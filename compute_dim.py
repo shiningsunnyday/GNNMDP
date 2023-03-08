@@ -41,6 +41,7 @@ parser.add_argument('--num_iters', type=int, default=3,help='num iterations')
 parser.add_argument('--gnn_model', type=str, default='gcn', help='gnn model', choices=['gcn','gin','sage','edge','tag','gine'])
 parser.add_argument('--num_hidden_layers', type=int, default=2, help='number of conv layers')
 parser.add_argument('--flag', type=int, required=True, help='flag')
+parser.add_argument('--suffix',type=str,default='',help='if non-empty, add suffix to log file to differentiate')
 
 args = parser.parse_args()
 
@@ -67,10 +68,30 @@ train = True
 
 import repair_method as rm
 
+def did_run(log_path, arg_dict):
+    if not os.path.exists(log_path): return False
+    cur_data = json.load(open(log_path))['runs']
+    for run in cur_data:
+        is_run = True
+        for k, v in arg_dict.items():
+            if k not in run or run[k] != v:
+                is_run = False
+        if is_run:
+            return True
+    return False
 
 flag=args.flag
 
-for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(flag)):    
+for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(flag)):  
+
+    arg_dict = args.__dict__
+    arg_dict['a'] = a 
+
+    log_path = f'results_{args.algo}/new_logs{args.suffix}.json'
+
+    if did_run(log_path, arg_dict): 
+        print("ran before, skipping")
+        continue
 
     # Save path folder for running results
     pathname = method_dir + '{}/{}/'.format(dataset,a)
@@ -180,8 +201,7 @@ for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(
          format(str(global_loss_list)))
     f.write('best_seed ={}\n'.
          format(str(best_seed)))
-    arg_dict = args.__dict__
-    arg_dict['a'] = a
+    
     try:
 
         f.write('args ={}\n'.format(json.dumps(arg_dict)))
@@ -200,9 +220,7 @@ for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(
     f = open(pathname + record_repair_path, 'a+')
     f.write('global_dim ={}\n'.format(dim))
     f.write('resolving_set ={}\n'.format(str(r_set)))
-    f.close()
-
-    log_path = f'results_{args.algo}/new_logs.json'
+    f.close()    
     
     if os.path.exists(log_path):
         f = open(log_path, 'r')

@@ -115,8 +115,8 @@ def load_data_adj_ntable(path, dataset1,dataset2):
     """Load graph adjacent matrix and non-resolving table from txt files"""
 
     # To read the adjacent matrix and non-resolving table-- ntable-- from the txt file
-    adj = np.genfromtxt("{}{}".format(path, dataset1),delimiter='',dtype=np.str)
-    ntable = np.genfromtxt("{}{}".format(path, dataset2), delimiter='/n', dtype=np.str)
+    adj = np.genfromtxt("{}{}".format(path, dataset1),delimiter='',dtype=np.str_)
+    ntable = np.genfromtxt("{}{}".format(path, dataset2), delimiter='/n', dtype=np.str_)
 
     # To generate the edges and their weights
     edges = adj[:,0:2]
