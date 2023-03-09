@@ -122,11 +122,14 @@ def heatmap(x1, x2, xlim=[], ylim=[], zlim=[], fixed={}, pool=None, plot_surface
             continue
         if x2 not in run_dic:
             continue
+        b = False
         for k, v in fixed.items():
             if k not in run_dic:
-                continue
+                b = True
             if run_dic[k] != v: 
-                continue      
+                b = True
+        if b: 
+            continue      
 
         rewards = run_dic['global_reward_list']
         if len(rewards) != run_dic['epochs']: 
@@ -156,7 +159,7 @@ def heatmap(x1, x2, xlim=[], ylim=[], zlim=[], fixed={}, pool=None, plot_surface
     if plot_surface:
         ax.plot_surface(X,Y,Z)
 
-    ax.view_init(azim=225)
+    # ax.view_init(azim=225)
     ax.scatter(x,y,z)
     ax.set_zlim(*zlim)
     ax.set_xlim(*xlim)
@@ -166,7 +169,7 @@ def heatmap(x1, x2, xlim=[], ylim=[], zlim=[], fixed={}, pool=None, plot_surface
     return fig
 
 
-path = './results_gnn-mdp/new_logs-layer.json'
+path = './results_algo2/new_logs.json'
 f = open(path)
 dic = json.load(f)
 f.close()
@@ -186,18 +189,20 @@ f.close()
 # plt.ylabel("1/(|S|+|V|*|NR(S))")
 # fig.savefig("./mask_c_new.png")
 # fig.clear()
+# plt.clf()
 
-# fig = vary_hparam("lr", {
-#     'algo': 'algo2',
-#     'epochs': 100,
-#     'num_iters': 10,
-#     'gnn_model': 'gcn'
-# }, pool=pool_func)
-# plt.title("average reward vs learning rate")
-# plt.xlabel("learning rate")
-# plt.ylabel("1/(|S|+|V|*|NR(S))")
-# fig.savefig("./lr_algo2.png")
-# fig.clear()
+fig = vary_hparam("lr", {
+    'algo': 'algo2',
+    'epochs': 100,
+    'num_iters': 10,
+    'gnn_model': 'gcn'
+}, pool=pool_func)
+plt.title("average reward vs learning rate")
+plt.xlabel("learning rate")
+plt.ylabel("1/(|S|+|V|*|NR(S))")
+fig.savefig("./lr_algo2.png")
+fig.clear()
+plt.clf()
 
 # fig = vary_hparam("num_hidden_layers", {
 #     "lr": 0.01, 
@@ -212,6 +217,21 @@ f.close()
 # plt.ylabel("1/(|S|+|V|*|NR(S))")
 # fig.savefig("./num_hidden_layers.png")
 # fig.clear()
+# plt.clf()
+
+# fig = vary_hparam("gnn_model", {
+#     "lr": 0.01, 
+#     'algo': 'gnn-mndp',
+#     'mask_c': 3,
+#     'epochs': 1000,
+#     'num_iters': 1,
+# }, pool=pool_func)
+# plt.title("average reward vs gnn architecture")
+# plt.xlabel("layer architecture")
+# plt.ylabel("1/(|S|+|V|*|NR(S))")
+# fig.savefig("./gnns-final.png")
+# fig.clear()
+# plt.clf()
 
 # def add_diameter(dic, max_lim=10):
 #     for i, run in tqdm(enumerate(dic['runs'])):
@@ -231,30 +251,33 @@ f.close()
 #     return dic
 
 # dic = add_diameter(dic)
-# fig = heatmap("diameter", "num_hidden_layers", fixed={
-#     'lr': 0.01,
+# for f in [1, 2, 3, 4, 5, 6]:
+#     fig = heatmap("diameter", "num_hidden_layers", fixed={
+#         'lr': 0.01,
+#         'algo': 'gnn-mdp',
+#         'mask_c': 3,
+#         'flag': f,
+#         'epochs': 1000,
+#         'num_iters': 1,
+#         'gnn_model': 'gcn',
+#     }, pool=pool_heatmap, xlim=[0,10], ylim=[0,16], zlim=[0,0.10], plot_surface=True)
+#     fig.savefig(f"./nhl_diam_3d_f={f}.png")
+#     fig.clear()
+#     plt.clf()
+
+# fig = vary_hparam("lr", {
 #     'algo': 'gnn-mdp',
-#     'mask_c': 3,
+#     'mask_c': 3.0,
+#     'num_hidden_layers': 2,
 #     'epochs': 1000,
 #     'num_iters': 1,
 #     'gnn_model': 'gcn',
-# }, pool=pool_heatmap, xlim=[0,10], ylim=[0,16], zlim=[0,0.10])
-# fig.savefig("./nhl_diam_3d.png")
+# }, pool=pool_func)
+# plt.title("average reward vs learning rate")
+# plt.xlabel("learning rate")
+# plt.ylabel("1/(|S|+|V|*|NR(S))")
+# fig.savefig("./gnn-mdp_lr.png")
 # fig.clear()
-
-fig = vary_hparam("lr", {
-    'algo': 'gnn-mdp',
-    'mask_c': 3.0,
-    'num_hidden_layers': 2,
-    'epochs': 1000,
-    'num_iters': 1,
-    'gnn_model': 'gcn',
-}, pool=pool_func)
-plt.title("average reward vs learning rate")
-plt.xlabel("learning rate")
-plt.ylabel("1/(|S|+|V|*|NR(S))")
-fig.savefig("./gnn-mdp_lr.png")
-fig.clear()
 
 # fig = plot_runs('mask_c', fixed={
 #     "lr": 0.01, 
