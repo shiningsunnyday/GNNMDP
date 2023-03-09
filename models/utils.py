@@ -4,6 +4,14 @@ import torch
 from collections import defaultdict
 import json
 
+NAMES = ['tree', 'gnm', 'gnp', 'cluster', 'rpg', 'watts']
+FLAG_D = {'tree': [10,9,8,7,6,5,4,3,2,1], 
+        'gnm': [250,300,352,410,450,520,605,650,700,800], 
+        'gnp': [0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9], 
+        'cluster': [5,11,15,20,30,40,51,62,75,80], 
+        'rpg': [5,7,8,10,15,20,25,30,35,40], 
+        'watts': [5,11,20,30,40,55,60,75,85,90]}
+
 def add_diameter(dic, max_lim=10):
     for i, run in tqdm(enumerate(dic['runs'])):
         if 'num_hidden_layers' not in run:
@@ -47,6 +55,7 @@ def encode_onehot(labels):
     labels_onehot = np.array(list(map(classes_dict.get, labels)),
                              dtype=np.int32)
     return labels_onehot
+
 
 def load_datapath(flag):
     if flag==1:

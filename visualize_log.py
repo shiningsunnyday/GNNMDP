@@ -7,6 +7,9 @@ from models import utils as ut
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import floyd_warshall
 from scipy.linalg import lstsq
+from itertools import chain
+from decimal import Decimal
+import pandas as pd
 from tqdm import tqdm
 
 def plot_runs(hparam, fixed={}):
@@ -84,12 +87,52 @@ def vary_hparam(hparam, fixed={}, pool=lambda x:max(x), pool_args=[]):
     res_keys = list(map(str, res_keys))
     plt.bar(res_keys, res_v)
     for i, v in enumerate(res_v):
-     plt.text(i-0.25, v, str(round(v,4)), color='blue', fontweight='bold')
+        plt.text(i-0.25, v, str(round(v,4)), color='blue', fontweight='bold')
     print(res_keys, res_v)
     return fig
 
+def fill_table(hparam, fixed={}, pool=lambda x:max(x), pool_args=[]):
+    """
+    make df filled with results similar to vary_hparam
+    """
+    res = defaultdict(list)
+    for run_dic in dic['runs']:
+        if hparam not in run_dic:
+            continue
+        for k, v in fixed.items():
+            if k not in run_dic:
+                continue
+            if run_dic[k] != v: 
+                continue      
 
-def pool_func(x, metric='reward'):
+        rewards = run_dic['global_reward_list']
+        if len(rewards) != run_dic['epochs']: 
+            continue
+        
+        res[run_dic[hparam]] += [run_dic]
+
+    fig = plt.figure()        
+    res_keys = sorted(list(res.keys()))    
+
+    for k in res_keys:
+        print(f"pooling over {len(res[k])} runs for {hparam}={k}")
+
+    res_v = {k: pool(res[k], *pool_args) for k in res_keys}
+    rows = [[0. for _ in range(len(ut.FLAG_D[name]))] for name in ut.NAMES]
+    for k, best_k in res_v.items():        
+        for flag in best_k:
+            for a, v in best_k[flag].items():
+                name = ut.NAMES[flag-1]
+                a_ind = ut.FLAG_D[name].index(a)
+                rows[flag-1][a_ind] = '%.2E' % Decimal(v)
+        res_v[k] = chain(*rows)        
+
+    index = [f"{name}{ind}" for name in ut.NAMES for ind in range(1, len(ut.FLAG_D[name])+1)]
+    df = pd.DataFrame(res_v, np.array(index))
+    
+    return df    
+
+def pool_func(x, metric='reward', raw=False):
     if metric == 'reward':
          metric = lambda dic: max(dic['global_reward_list'])
     elif metric == 'ratio':
@@ -104,8 +147,10 @@ def pool_func(x, metric='reward'):
         try: 
             best[flag][a] = max(best[flag][a], metric(dic))
         except Exception as e:
-            print(e)        
+            print(e)  
 
+    if raw:
+        return best      
     
     sum = 0
     for flag in best:
@@ -172,10 +217,10 @@ def heatmap(x1, x2, xlim=[], ylim=[], zlim=[], fixed={}, pool=None, plot_surface
     return fig
 
 
-path = './results_algo2/new_logs.json'
+# path = './results_algo2/new_logs.json'
 # path = './results_gnn-mdp/new_logs-layer-only.json' # hidden layer exp only
 # path = './results_gnn-mdp/new_logs_and_layer.json' # new_logs.json + hidden layer exp
-# path = './results_gnn-mdp/new_logs-final.json' # gnn architectures with default settings
+path = './results_gnn-mdp/new_logs-final.json' # gnn architectures with default settings
 lp_path = './results_lp/lp_logs.json'
 
 lp_dic = ut.load_lp(lp_path)
@@ -200,18 +245,18 @@ f.close()
 # fig.clear()
 # plt.clf()
 
-fig = vary_hparam("lr", {
-    'algo': 'algo2',
-    'epochs': 100,
-    'num_iters': 10,
-    'gnn_model': 'gcn'
-}, pool=pool_func, pool_args=('reward',))
-plt.title("average reward vs learning rate")
-plt.xlabel("learning rate")
-plt.ylabel("1/(|S|+|V|*|NR(S))")
-fig.savefig("./lr_algo2.png")
-fig.clear()
-plt.clf()
+# fig = vary_hparam("lr", {
+#     'algo': 'algo2',
+#     'epochs': 100,
+#     'num_iters': 10,
+#     'gnn_model': 'gcn'
+# }, pool=pool_func, pool_args=('reward',))
+# plt.title("average reward vs learning rate")
+# plt.xlabel("learning rate")
+# plt.ylabel("1/(|S|+|V|*|NR(S))")
+# fig.savefig("./lr_algo2.png")
+# fig.clear()
+# plt.clf()
 
 # fig = vary_hparam("num_hidden_layers", {
 #     "lr": 0.01, 
@@ -228,19 +273,28 @@ plt.clf()
 # fig.clear()
 # plt.clf()
 
-fig = vary_hparam("gnn_model", {
+# fig = vary_hparam("gnn_model", {
+#     "lr": 0.01, 
+#     'algo': 'gnn-mndp',
+#     'mask_c': 3,
+#     'epochs': 1000,
+#     'num_iters': 1,
+# }, pool=pool_func, pool_args=(True,))
+# plt.title("average reward vs gnn architecture")
+# plt.xlabel("layer architecture")
+# plt.ylabel("1/(|S|+|V|*|NR(S))")
+# fig.savefig("./gnns-final.png")
+# fig.clear()
+# plt.clf()
+
+df = fill_table("gnn_model", {
     "lr": 0.01, 
     'algo': 'gnn-mndp',
     'mask_c': 3,
     'epochs': 1000,
     'num_iters': 1,
-}, pool=pool_func)
-plt.title("average reward vs gnn architecture")
-plt.xlabel("layer architecture")
-plt.ylabel("1/(|S|+|V|*|NR(S))")
-fig.savefig("./gnns-final.png")
-fig.clear()
-plt.clf()
+}, pool=pool_func, pool_args=('reward', True,))
+df.to_csv('./gnns-final.csv')
 
 # dic = ut.add_diameter(dic)
 # for f in [1, 2, 3, 4, 5, 6]:
