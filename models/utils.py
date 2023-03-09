@@ -2,7 +2,43 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 from collections import defaultdict
+import json
 
+def add_diameter(dic, max_lim=10):
+    for i, run in tqdm(enumerate(dic['runs'])):
+        if 'num_hidden_layers' not in run:
+            continue
+        flag = run['flag']
+        aa = run['a']
+        for dataset, datapath, dataset1, dataset2, a in ut.load_datapath(flag):
+            if a == aa:
+                break
+        adj, _ = ut.load_data_adj_ntable(datapath, dataset1, dataset2)
+        dist_matrix = floyd_warshall(csr_matrix(adj),directed=False)
+        if dist_matrix.max() > max_lim:
+            continue
+        run['diameter'] = dist_matrix.max()
+
+    return dic
+
+def load_lp(lp_path):
+    data = json.load(open(lp_path))
+    ret = defaultdict(lambda: defaultdict(dict))
+    for dic in data['runs']:
+        flag = dic['flag']
+        a = dic['a']
+        ret[flag][a] = dic
+    return ret
+
+def smooth(scalar, weight=0.85):    
+    last = scalar[0]
+    smoothed = []
+    for point in scalar:
+        smoothed_val = last * weight + (1 - weight) * point
+        smoothed.append(smoothed_val)
+        last = smoothed_val
+
+    return smoothed
 
 def encode_onehot(labels):
     classes = set(labels) # 打乱了顺序

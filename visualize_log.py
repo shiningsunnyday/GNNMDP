@@ -9,16 +9,6 @@ from scipy.sparse.csgraph import floyd_warshall
 from scipy.linalg import lstsq
 from tqdm import tqdm
 
-def smooth(scalar, weight=0.85):    
-    last = scalar[0]
-    smoothed = []
-    for point in scalar:
-        smoothed_val = last * weight + (1 - weight) * point
-        smoothed.append(smoothed_val)
-        last = smoothed_val
-
-    return smoothed
-
 def plot_runs(hparam, fixed={}):
     """
     fixed: dic of hparams to fix
@@ -52,7 +42,7 @@ def plot_runs(hparam, fixed={}):
     for key, run_dic in res.items():
         rewards = run_dic['global_reward_list']
         x = range(run_dic['epochs'])
-        y = smooth(rewards)
+        y = ut.smooth(rewards)
         plt.plot(x, y, label=f'{hparam}={key}')
         plt.scatter([np.argmax(rewards)], [max(rewards)], label=max(rewards))
         
@@ -60,11 +50,12 @@ def plot_runs(hparam, fixed={}):
     plt.yscale('log')
     return fig
 
-def vary_hparam(hparam, fixed={}, pool=lambda x:max(x)):
+def vary_hparam(hparam, fixed={}, pool=lambda x:max(x), pool_args=[]):
     """
     fixed: dic of hparams to fix
     hparam: key of hparam to vary
     pool: takes in list of run_dics for hparam value, outputs number
+    pool_args: args to pass to pool callabe, default empty
     plot avg(reward) over datasets
     """
     res = defaultdict(list)
@@ -89,7 +80,7 @@ def vary_hparam(hparam, fixed={}, pool=lambda x:max(x)):
     for k in res_keys:
         print(f"pooling over {len(res[k])} runs for {hparam}={k}")
         
-    res_v = [pool(res[k]) for k in res_keys]
+    res_v = [pool(res[k], *pool_args) for k in res_keys]
     res_keys = list(map(str, res_keys))
     plt.bar(res_keys, res_v)
     for i, v in enumerate(res_v):
@@ -97,12 +88,24 @@ def vary_hparam(hparam, fixed={}, pool=lambda x:max(x)):
     print(res_keys, res_v)
     return fig
 
-def pool_func(x):
+
+def pool_func(x, metric='reward'):
+    if metric == 'reward':
+         metric = lambda dic: max(dic['global_reward_list'])
+    elif metric == 'ratio':
+        metric = lambda dic: lp_dic[dic['flag']][dic['a']]['reward']/max(dic['global_reward_list'])
+    else:
+        raise
+
     best = defaultdict(lambda: defaultdict(lambda: 0.))
     for dic in x:
         a = dic['a']
         flag = dic['flag']
-        best[flag][a] = max(best[flag][a], max(dic['global_reward_list']))
+        try: 
+            best[flag][a] = max(best[flag][a], metric(dic))
+        except Exception as e:
+            print(e)        
+
     
     sum = 0
     for flag in best:
@@ -170,6 +173,12 @@ def heatmap(x1, x2, xlim=[], ylim=[], zlim=[], fixed={}, pool=None, plot_surface
 
 
 path = './results_algo2/new_logs.json'
+# path = './results_gnn-mdp/new_logs-layer-only.json' # hidden layer exp only
+# path = './results_gnn-mdp/new_logs_and_layer.json' # new_logs.json + hidden layer exp
+# path = './results_gnn-mdp/new_logs-final.json' # gnn architectures with default settings
+lp_path = './results_lp/lp_logs.json'
+
+lp_dic = ut.load_lp(lp_path)
 f = open(path)
 dic = json.load(f)
 f.close()
@@ -196,7 +205,7 @@ fig = vary_hparam("lr", {
     'epochs': 100,
     'num_iters': 10,
     'gnn_model': 'gcn'
-}, pool=pool_func)
+}, pool=pool_func, pool_args=('reward',))
 plt.title("average reward vs learning rate")
 plt.xlabel("learning rate")
 plt.ylabel("1/(|S|+|V|*|NR(S))")
@@ -219,38 +228,21 @@ plt.clf()
 # fig.clear()
 # plt.clf()
 
-# fig = vary_hparam("gnn_model", {
-#     "lr": 0.01, 
-#     'algo': 'gnn-mndp',
-#     'mask_c': 3,
-#     'epochs': 1000,
-#     'num_iters': 1,
-# }, pool=pool_func)
-# plt.title("average reward vs gnn architecture")
-# plt.xlabel("layer architecture")
-# plt.ylabel("1/(|S|+|V|*|NR(S))")
-# fig.savefig("./gnns-final.png")
-# fig.clear()
-# plt.clf()
+fig = vary_hparam("gnn_model", {
+    "lr": 0.01, 
+    'algo': 'gnn-mndp',
+    'mask_c': 3,
+    'epochs': 1000,
+    'num_iters': 1,
+}, pool=pool_func)
+plt.title("average reward vs gnn architecture")
+plt.xlabel("layer architecture")
+plt.ylabel("1/(|S|+|V|*|NR(S))")
+fig.savefig("./gnns-final.png")
+fig.clear()
+plt.clf()
 
-# def add_diameter(dic, max_lim=10):
-#     for i, run in tqdm(enumerate(dic['runs'])):
-#         if 'num_hidden_layers' not in run:
-#             continue
-#         flag = run['flag']
-#         aa = run['a']
-#         for dataset, datapath, dataset1, dataset2, a in ut.load_datapath(flag):
-#             if a == aa:
-#                 break
-#         adj, _ = ut.load_data_adj_ntable(datapath, dataset1, dataset2)
-#         dist_matrix = floyd_warshall(csr_matrix(adj),directed=False)
-#         if dist_matrix.max() > max_lim:
-#             continue
-#         run['diameter'] = dist_matrix.max()
-
-#     return dic
-
-# dic = add_diameter(dic)
+# dic = ut.add_diameter(dic)
 # for f in [1, 2, 3, 4, 5, 6]:
 #     fig = heatmap("diameter", "num_hidden_layers", fixed={
 #         'lr': 0.01,
