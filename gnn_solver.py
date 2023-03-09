@@ -68,8 +68,9 @@ def gnn_mdp(args,mod,datapath,dataset1,dataset2,ts,train=True,model_path=None):
     n = adj.shape[0]
     in_feats, hid_feats, out_feats = n+1, args.hidden, args.hidden
     num_layers, input_dim, hidden_dim, output_dim = 3, out_feats, args.hidden, n
-
-    if mod == 'sage':
+    if mod == 'distmask':
+        model = gnn.DistMask(output_dim, mask_c=args.mask_c)
+    elif mod == 'sage':
         aggregator_type = 'gcn'
         model = gnn.SAGE(in_feats, hid_feats, out_feats, aggregator_type, num_layers,
                          input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)

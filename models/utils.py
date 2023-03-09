@@ -3,6 +3,9 @@ import scipy.sparse as sp
 import torch
 from collections import defaultdict
 import json
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import floyd_warshall
+from tqdm import tqdm
 
 NAMES = ['tree', 'gnm', 'gnp', 'cluster', 'rpg', 'watts']
 FLAG_D = {'tree': [10,9,8,7,6,5,4,3,2,1], 
@@ -18,10 +21,10 @@ def add_diameter(dic, max_lim=10):
             continue
         flag = run['flag']
         aa = run['a']
-        for dataset, datapath, dataset1, dataset2, a in ut.load_datapath(flag):
+        for dataset, datapath, dataset1, dataset2, a in load_datapath(flag):
             if a == aa:
                 break
-        adj, _ = ut.load_data_adj_ntable(datapath, dataset1, dataset2)
+        adj, _ = load_data_adj_ntable(datapath, dataset1, dataset2)
         dist_matrix = floyd_warshall(csr_matrix(adj),directed=False)
         if dist_matrix.max() > max_lim:
             continue

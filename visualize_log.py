@@ -4,13 +4,10 @@ from collections import defaultdict
 from scipy import interpolate
 import numpy as np
 from models import utils as ut
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import floyd_warshall
 from scipy.linalg import lstsq
 from itertools import chain
 from decimal import Decimal
 import pandas as pd
-from tqdm import tqdm
 
 def plot_runs(hparam, fixed={}):
     """
@@ -53,6 +50,19 @@ def plot_runs(hparam, fixed={}):
     plt.yscale('log')
     return fig
 
+def mismatch(run_dic, fixed={}):
+    b = False
+    for k, v in fixed.items():
+        if k not in run_dic:
+            b = True
+        if isinstance(v, list):
+            if run_dic[k] not in v:
+                b = True
+        elif run_dic[k] != v: 
+            b = True
+    return b
+
+
 def vary_hparam(hparam, fixed={}, pool=lambda x:max(x), pool_args=[]):
     """
     fixed: dic of hparams to fix
@@ -65,11 +75,8 @@ def vary_hparam(hparam, fixed={}, pool=lambda x:max(x), pool_args=[]):
     for run_dic in dic['runs']:
         if hparam not in run_dic:
             continue
-        for k, v in fixed.items():
-            if k not in run_dic:
-                continue
-            if run_dic[k] != v: 
-                continue      
+        if mismatch(run_dic, fixed):
+            continue
 
         rewards = run_dic['global_reward_list']
         if len(rewards) != run_dic['epochs']: 
@@ -99,11 +106,8 @@ def fill_table(hparam, fixed={}, pool=lambda x:max(x), pool_args=[]):
     for run_dic in dic['runs']:
         if hparam not in run_dic:
             continue
-        for k, v in fixed.items():
-            if k not in run_dic:
-                continue
-            if run_dic[k] != v: 
-                continue      
+        if mismatch(run_dic, fixed):
+            continue
 
         rewards = run_dic['global_reward_list']
         if len(rewards) != run_dic['epochs']: 
@@ -111,24 +115,24 @@ def fill_table(hparam, fixed={}, pool=lambda x:max(x), pool_args=[]):
         
         res[run_dic[hparam]] += [run_dic]
 
-    fig = plt.figure()        
     res_keys = sorted(list(res.keys()))    
 
     for k in res_keys:
         print(f"pooling over {len(res[k])} runs for {hparam}={k}")
 
     res_v = {k: pool(res[k], *pool_args) for k in res_keys}
-    rows = [[0. for _ in range(len(ut.FLAG_D[name]))] for name in ut.NAMES]
+    data = {}
+    rows = [[np.nan for _ in range(len(ut.FLAG_D[name]))] for name in ut.NAMES]
     for k, best_k in res_v.items():        
         for flag in best_k:
             for a, v in best_k[flag].items():
                 name = ut.NAMES[flag-1]
                 a_ind = ut.FLAG_D[name].index(a)
-                rows[flag-1][a_ind] = '%.2E' % Decimal(v)
-        res_v[k] = chain(*rows)        
+                rows[flag-1][a_ind] = v
+        data[k] = list(chain(*rows))
 
     index = [f"{name}{ind}" for name in ut.NAMES for ind in range(1, len(ut.FLAG_D[name])+1)]
-    df = pd.DataFrame(res_v, np.array(index))
+    df = pd.DataFrame(data, np.array(index))
     
     return df    
 
@@ -170,14 +174,8 @@ def heatmap(x1, x2, xlim=[], ylim=[], zlim=[], fixed={}, pool=None, plot_surface
             continue
         if x2 not in run_dic:
             continue
-        b = False
-        for k, v in fixed.items():
-            if k not in run_dic:
-                b = True
-            if run_dic[k] != v: 
-                b = True
-        if b: 
-            continue      
+        if mismatch(run_dic, fixed):
+            continue
 
         rewards = run_dic['global_reward_list']
         if len(rewards) != run_dic['epochs']: 
@@ -289,12 +287,25 @@ f.close()
 
 df = fill_table("gnn_model", {
     "lr": 0.01, 
-    'algo': 'gnn-mndp',
+    'algo': 'gnn-mdp',
+    'gnn_model': ['gcn', 'gin'],
     'mask_c': 3,
     'epochs': 1000,
     'num_iters': 1,
 }, pool=pool_func, pool_args=('reward', True,))
 df.to_csv('./gnns-final.csv')
+
+path = './results_algo2/new_logs-final.json'
+dic = json.load(open(path))
+df_algo2 = fill_table("gnn_model", {
+    "lr": 0.003, 
+    'gnn_model': ['gcn', 'gin'],
+    'algo': 'algo2',
+}, pool=pool_func, pool_args=('reward', True,))
+df_algo2.to_csv('./gnns-final-algo2.csv')
+df /= df_algo2
+df = df.applymap(lambda x: '%.2E' % Decimal(x))
+df.to_csv('./gnns-final-gnnmdp-to-algo2.csv')
 
 # dic = ut.add_diameter(dic)
 # for f in [1, 2, 3, 4, 5, 6]:

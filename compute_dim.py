@@ -38,7 +38,7 @@ parser.add_argument('--dropout', type=float, default=0.0,
 parser.add_argument('--algo', type=str, default='algo2', choices=['gnn-mdp','gnn-mvc','algo2'],help='gnn-mdp, gnn-mvc algorithm 2')
 parser.add_argument('--mask_c', type=float, default=.5,help='tradeoff between loss and mask for gnn-mdp')
 parser.add_argument('--num_iters', type=int, default=3,help='num iterations')
-parser.add_argument('--gnn_model', type=str, default='gcn', help='gnn model', choices=['gcn','gin','sage','edge','tag','gine'])
+parser.add_argument('--gnn_model', type=str, default='gcn', help='gnn model', choices=['distmask', 'gcn','gin','sage','edge','tag','gine'])
 parser.add_argument('--num_hidden_layers', type=int, default=2, help='number of conv layers')
 parser.add_argument('--flag', type=int, required=True, help='flag')
 parser.add_argument('--suffix',type=str,default='',help='if non-empty, add suffix to log file to differentiate')
