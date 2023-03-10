@@ -74,6 +74,8 @@ def gnn_mdp(args,mod,datapath,dataset1,dataset2,ts,train=True,model_path=None):
         if args.do_omp:
             # rew_func = lambda x: ut.reward(x,ntable)[-1] # return best_reward
             rew_func = lambda x, s: -args.distmask_c*x.sum()/x.shape[-1]+s
+        else:
+            rew_func = None
         model = gnn.DistMask(output_dim, mask_c=args.mask_c, do_omp=rew_func)
     elif mod == 'sage':
         aggregator_type = 'gcn'
