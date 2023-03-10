@@ -12,7 +12,7 @@ from copy import deepcopy
 # Training settings
 parser = argparse.ArgumentParser()
 parser.add_argument('--no-cuda', action='store_true', default=True,
-                    help='Disables CUDA training.')
+                help='Disables CUDA training.')
 parser.add_argument('--fastmode', action='store_true', default=False,
                     help='Validate during training pass.')
 parser.add_argument('--seed', type=int, default=369, help='Random seed.')  # 456,13
@@ -37,6 +37,8 @@ parser.add_argument('--dropout', type=float, default=0.0,
                     help='Dropout rate (1 - keep probability).')
 parser.add_argument('--algo', type=str, default='algo2', choices=['gnn-mdp','gnn-mvc','algo2'],help='gnn-mdp, gnn-mvc algorithm 2')
 parser.add_argument('--mask_c', type=float, default=.5,help='tradeoff between loss and mask for gnn-mdp')
+parser.add_argument('--distmask_c', type=float, default=.5,help='tradeoff between score and k for do_omp baseline')
+parser.add_argument('--do_omp', type=bool, default=False,help='whether to do orthogonal matching pursuit instead of mask')
 parser.add_argument('--num_iters', type=int, default=3,help='num iterations')
 parser.add_argument('--gnn_model', type=str, default='gcn', help='gnn model', choices=['distmask', 'gcn','gin','sage','edge','tag','gine'])
 parser.add_argument('--num_hidden_layers', type=int, default=2, help='number of conv layers')

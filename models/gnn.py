@@ -7,27 +7,54 @@ import torch.nn as nn
 from torch.nn.utils import weight_norm as wn
 import torch.nn.functional as F
 from dgl.nn.pytorch import GraphConv,GATConv,SAGEConv,GINConv,EdgeConv,TAGConv,GINEConv
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, OrthogonalMatchingPursuit
 from models import mlp
 from copy import deepcopy
 from models import utils as ut
 EPS = 1e-30
 
-def classify(feats, y=None):
+def classify(feats, y=None, do_mask=True, omp_rew=None):
+    def check_coef(coef, intercept):
+        best_coef = deepcopy(coef)
+        best_intercept = deepcopy(intercept)
+        if best_coef.shape[0] == 1:
+            best_coef = np.concatenate((-best_coef/2, best_coef/2), axis=0)
+            best_intercept = np.array([-best_intercept[0]/2, best_intercept[0]/2])
+        return best_coef, best_intercept
+
     if y == None:
         y = np.arange(len(feats))
-    clf=LogisticRegression(max_iter=200).fit(feats,y)
-    best_coef = deepcopy(clf.coef_)
-    best_intercept = deepcopy(clf.intercept_)
-    if best_coef.shape[0] == 1:
-        best_coef = np.concatenate((-best_coef/2, best_coef/2), axis=0)
-        best_intercept = np.array([-best_intercept[0]/2, best_intercept[0]/2])
-    return best_coef, best_intercept # (n classes, n features)
+    if do_mask:
+        clf=LogisticRegression(max_iter=200).fit(feats,y)
+        best_coef, best_intercept = check_coef(clf.coef_, clf.intercept_) # (n classes, n features)  
+        return best_coef, best_intercept  
+    else:
+        assert omp_rew
+        best_rew, best_coef_intercept, best_set_indicator = -1e9, None, None
+        for k in range(1, len(feats)+1):
+            omp=OrthogonalMatchingPursuit(n_nonzero_coefs=k,
+                                    normalize=True, fit_intercept=True).fit(feats, np.eye(len(feats)))
+            set_indices = np.argsort((omp.coef_!=0).sum(axis=0))[-k:].tolist() # choose top k nodes
+            set_indicator = np.zeros(len(feats))
+            set_indicator[set_indices] = 1.
+            rew = omp_rew(set_indicator[None], omp.score(feats, np.eye(len(feats))))
+            if rew > best_rew:
+                best_set_indicator = deepcopy(set_indicator)
+                best_rew = rew
+                best_coef_intercept = (deepcopy(omp.coef_), deepcopy(omp.intercept_))
+        
+        best_coef, best_intercept = check_coef(*best_coef_intercept)
+        return best_coef, best_intercept, best_set_indicator
+
+    
+            
+
+
 
 
 #MDP baseline with distances as final hidden representation
 class DistMask(nn.Module):
-    def __init__(self, output_dim, mask_c=.0):
+    def __init__(self, output_dim, mask_c=.0,do_omp=None):
         super(DistMask,self).__init__()   
         self.output_dim = output_dim
         self.do_mask = mask_c > .0
@@ -37,6 +64,11 @@ class DistMask(nn.Module):
         if self.do_mask:            
             self.mask = nn.Embedding(output_dim,2,_weight=torch.log(torch.rand(output_dim,2)))
             self.mask_c = mask_c
+        elif do_omp:            
+            self.dummy_mask = nn.Parameter(torch.zeros(output_dim,1)) # prevent torch complaining no parameter
+            self.omp_mask = torch.zeros(output_dim,1) # use to store results
+            self.do_omp = True
+            self.omp_reward = do_omp
 
     def forward(self, graph, inputs):
         # 输入是节点的特征
@@ -56,7 +88,7 @@ class DistMask(nn.Module):
         param: output is masked output from GNN
         edge_features assumed to be one-hot vector encoded in same order
         """
-            
+        
         if edge_mask != None:
             # use masked nodes to predict all edge identities
             cross_prod = list(product(output, output))            
@@ -70,46 +102,35 @@ class DistMask(nn.Module):
             y = torch.arange(len(output_detach))
             sample_mask = (y >= 0)
 
-        best_coef, best_intercept = classify(output_detach[sample_mask], y[sample_mask])
+        if self.do_omp:      
+            if epoch == 1:      
+                best_coef, best_intercept, omp_mask = classify(output_detach[sample_mask], y[sample_mask], False, self.omp_reward)
+                self.omp_mask[:, 0] = torch.as_tensor(omp_mask)
+            else:
+                return 0 * self.dummy_mask.sum()
+        else:
+            best_coef, best_intercept = classify(output_detach[sample_mask], y[sample_mask])
+            
+            
         best_coef = torch.from_numpy(best_coef).detach().float()        
         best_intercept = torch.from_numpy(best_intercept).detach().float()        
         loss = nn.CrossEntropyLoss()(output @ best_coef.T + best_intercept, y)
-        mask_loss = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1].sum()
+        
+        
         # return mask_loss
         # return self.mask_c * mask_loss
         # return loss 
-        return loss + self.mask_c * mask_loss
-
-    def decide_action(self, output, batch_size):
-        set_vector = []
-        temp1 = output.detach().numpy()
-        set_indicator = []
-        for i in range(batch_size):
-            a = np.random.binomial(1, temp1[:, i]) # (100,)
-            while np.all(a == 0) or np.sum(a) > temp1.shape[0] - 2:
-
-                # a = np.random.binomial(1, temp1[:, i])
-
-                a=np.random.randint(0,2, size=(temp1.shape[0],))
-
-
-            set_indicator.append(a)
-        set_indicator = torch.tensor(set_indicator).transpose(1, 0) # (100, 32)
-
-        for i in range(set_indicator.shape[1]):
-            temp_set = []
-            for index, value in enumerate(set_indicator[:, i]):
-                if value > 0:
-                    temp_set.append(index)
-            # temp_set shape : (100,)
-            set_vector.append(temp_set)
-
-        # set_vector (32,), indices of landmarks only
-
-        return set_vector, set_indicator
+        if self.do_omp:
+            return loss + 0 * self.dummy_mask.sum()
+        else:
+            mask_loss = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1].sum()
+            return loss + self.mask_c * mask_loss 
 
     def decide_action_mask(self, output, batch_size):
-        set_indicator = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1]
+        if self.do_omp:
+            set_indicator = self.omp_mask.data
+        else:
+            set_indicator = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1]
         set_vector = []
         for i in range(batch_size):
             temp_set = []

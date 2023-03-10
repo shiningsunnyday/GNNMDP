@@ -1,6 +1,7 @@
 
 from models import utils as ut
 from models import gnn
+import numpy as np
 import torch.optim as optim
 import dgl
 import torch
@@ -69,7 +70,11 @@ def gnn_mdp(args,mod,datapath,dataset1,dataset2,ts,train=True,model_path=None):
     in_feats, hid_feats, out_feats = n+1, args.hidden, args.hidden
     num_layers, input_dim, hidden_dim, output_dim = 3, out_feats, args.hidden, n
     if mod == 'distmask':
-        model = gnn.DistMask(output_dim, mask_c=args.mask_c)
+        assert (args.mask_c>0) ^ args.do_omp
+        if args.do_omp:
+            # rew_func = lambda x: ut.reward(x,ntable)[-1] # return best_reward
+            rew_func = lambda x, s: -args.distmask_c*x.sum()/x.shape[-1]+s
+        model = gnn.DistMask(output_dim, mask_c=args.mask_c, do_omp=rew_func)
     elif mod == 'sage':
         aggregator_type = 'gcn'
         model = gnn.SAGE(in_feats, hid_feats, out_feats, aggregator_type, num_layers,
