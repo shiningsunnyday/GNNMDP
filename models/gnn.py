@@ -58,7 +58,7 @@ class DistMask(nn.Module):
         super(DistMask,self).__init__()   
         self.output_dim = output_dim
         self.do_mask = mask_c > .0
-
+        self.do_omp = bool(do_omp)
         # 实例化SAGEConve，in_feats是输入特征的维度，out_feats是输出特征的维度，aggregator_type是聚合函数的类型                
 
         if self.do_mask:            
@@ -66,8 +66,7 @@ class DistMask(nn.Module):
             self.mask_c = mask_c
         elif do_omp:            
             self.dummy_mask = nn.Parameter(torch.zeros(output_dim,1)) # prevent torch complaining no parameter
-            self.omp_mask = torch.zeros(output_dim,1) # use to store results
-            self.do_omp = True
+            self.omp_mask = torch.zeros(output_dim,1) # use to store results            
             self.omp_reward = do_omp
 
     def forward(self, graph, inputs):
