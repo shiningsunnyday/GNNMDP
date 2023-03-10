@@ -422,7 +422,7 @@ class SAGE(nn.Module):
         set_indicator = []
         for i in range(batch_size):
             a = np.random.binomial(1, temp1[:, i])
-            while np.all(a == 0) or np.sum(a) > temp1.shape[0] - 2:
+            while np.all(a == 0):
                 a = np.random.binomial(1, temp1[:, i])
             set_indicator.append(a)
         set_indicator = torch.tensor(set_indicator).transpose(1, 0)
@@ -737,7 +737,7 @@ class EDGE(nn.Module):
         set_indicator = []
         for i in range(batch_size):
             a = np.random.binomial(1, temp1[:, i])
-            while np.all(a == 0) or np.sum(a) > temp1.shape[0] - 2:
+            while np.all(a == 0):
                 a = np.random.binomial(1, temp1[:, i])
             set_indicator.append(a)
         set_indicator = torch.tensor(set_indicator).transpose(1, 0)
