@@ -8,9 +8,9 @@ from torch.nn.utils import weight_norm as wn
 import torch.nn.functional as F
 from dgl.nn.pytorch import GraphConv,GATConv,SAGEConv,GINConv,EdgeConv,TAGConv,GINEConv
 from sklearn.linear_model import LogisticRegression, OrthogonalMatchingPursuit
-from models import mlp
 from copy import deepcopy
-from models import utils as ut
+import pretrain.GNNMDP.models.utils as ut
+import pretrain.GNNMDP.models.mlp as mlp
 EPS = 1e-30
 
 def classify(feats, y=None, do_mask=True, omp_rew=None):

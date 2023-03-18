@@ -1,6 +1,7 @@
 
-from models import utils as ut
-from models import gnn
+from pretrain.GNNMDP.models import utils as ut
+from pretrain.GNNMDP.models import train_gcn as ts
+from pretrain.GNNMDP.models import gnn
 import numpy as np
 import torch.optim as optim
 import dgl
@@ -58,6 +59,67 @@ def gnn_solver(args,mod,datapath,dataset1,dataset2,ts,train=True,model_path=None
     else:
         return local_ave_time, local_reward, local_loss, local_best_ind, \
                local_best_ind_panel_set, local_max_reward, ntable
+
+
+def pretrain_gnn_mdp(args, mod, adj, ntable, train=True):
+    G = dgl.from_scipy(adj)
+    if mod == 'gcn' or mod == 'gat':
+        G = dgl.add_self_loop(G)
+    # Model and optimizer
+    n = adj.shape[0]
+    in_feats, hid_feats, out_feats = n+1, args.hidden, args.hidden
+    num_layers, input_dim, hidden_dim, output_dim = 3, out_feats, args.hidden, n
+    if mod == 'distmask':
+        assert (args.mask_c>0) ^ args.do_omp
+        if args.do_omp:
+            # rew_func = lambda x: ut.reward(x,ntable)[-1] # return best_reward
+            rew_func = lambda x, s: -args.distmask_c*x.sum()/x.shape[-1]+s
+        else:
+            rew_func = None
+        model = gnn.DistMask(output_dim, mask_c=args.mask_c, do_omp=rew_func)
+    elif mod == 'sage':
+        aggregator_type = 'gcn'
+        model = gnn.SAGE(in_feats, hid_feats, out_feats, aggregator_type, num_layers,
+                         input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
+    elif mod == 'gcn':
+        model = gnn.GCN(in_feats, hid_feats, out_feats, num_layers,
+                        input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
+    elif mod == 'gat':
+        num_heads = 3
+        model = gnn.GAT(in_feats, hid_feats, out_feats, num_heads,
+                        num_layers, input_dim, hidden_dim, output_dim)
+    elif mod == 'gin':
+        aggregator_type = 'mean'
+        fun_num_layers = 3
+        model = gnn.GIN(in_feats, hid_feats, out_feats, aggregator_type,
+                        fun_num_layers, num_layers, input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
+    elif mod == 'edge':
+        model = gnn.EDGE(in_feats, hid_feats,out_feats,num_layers, input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
+    elif mod == 'tag':
+        model = gnn.TAG(in_feats, hid_feats, out_feats, num_layers, input_dim, hidden_dim, output_dim, num_hidden_layers=args.num_hidden_layers, mask_c=args.mask_c)
+    if train:
+        step_size, gamma = 50, 0.5  # 50,0.5
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+        model.train()
+        local_ave_time, local_reward, local_loss, local_best_ind, \
+        local_best_ind_panel_set, local_max_reward, local_best_state \
+            = ts.train_gnn_mdp(args, model, ntable, G, optimizer=optimizer, scheduler=scheduler, train=True)
+
+    else:
+
+        model.load_state_dict(torch.load(model_path))
+        local_ave_time, local_reward, local_loss, local_best_ind, \
+        local_best_ind_panel_set, local_max_reward\
+            = ts.train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=False)
+
+    if train:
+        return model, local_ave_time, local_reward, local_loss, local_best_ind, \
+               local_best_ind_panel_set, local_max_reward, local_best_state,ntable
+    else:
+        return model, local_ave_time, local_reward, local_loss, local_best_ind, \
+               local_best_ind_panel_set, local_max_reward, ntable    
+    
 
 
 def gnn_mdp(args,mod,datapath,dataset1,dataset2,ts,train=True,model_path=None):

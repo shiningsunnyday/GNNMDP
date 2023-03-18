@@ -8,8 +8,8 @@ from __future__ import print_function
 import time
 import numpy as np
 import torch
-from models import utils as ut
 from torch.nn import functional as F
+import pretrain.GNNMDP.models.utils as ut
 
 
 def train(args,model,ntable,G,optimizer=None,scheduler=None,train=True):
