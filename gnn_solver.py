@@ -114,10 +114,10 @@ def pretrain_gnn_mdp(args, mod, adj, ntable, train=True):
             = ts.train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=False)
 
     if train:
-        return model, local_ave_time, local_reward, local_loss, local_best_ind, \
+        return (model, G), local_ave_time, local_reward, local_loss, local_best_ind, \
                local_best_ind_panel_set, local_max_reward, local_best_state,ntable
     else:
-        return model, local_ave_time, local_reward, local_loss, local_best_ind, \
+        return (model, G), local_ave_time, local_reward, local_loss, local_best_ind, \
                local_best_ind_panel_set, local_max_reward, ntable    
     
 

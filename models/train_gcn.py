@@ -174,6 +174,7 @@ def train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=True):
         local_best_reward = ut.reward(set_vector, ntable)
         print(local_best_reward)
         print("global:",global_max_reward)
+        print("global ind:",global_best_ind)
 
         episode_origin_mean_reward.append(np.mean(reward_vector))
         # 记录最优个体与最优值
