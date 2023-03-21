@@ -136,7 +136,7 @@ def train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=True):
     episode_origin_mean_reward = []  # 保存每代平均奖励损失
     episode_loss = []
     global_best_ind = []
-    global_best_ind_panel_set = []
+    global_best_ind_panel_set = [0 for _ in range(node_num*(node_num-1)//2)]
     global_max_reward = -(node_num - 1)
 
     start = time.time()
@@ -178,7 +178,7 @@ def train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=True):
 
         episode_origin_mean_reward.append(np.mean(reward_vector))
         # 记录最优个体与最优值
-        if global_max_reward < local_best_reward and len(local_best_panel) == 0:  # 记录全局最好信息
+        if global_max_reward < local_best_reward and len(local_best_panel) < len(global_best_ind_panel_set):  # 记录全局最好信息
             global_max_reward = local_best_reward
             global_best_ind = local_best_ind
             global_best_ind_panel_set = local_best_panel
