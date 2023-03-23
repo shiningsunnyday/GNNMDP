@@ -60,6 +60,60 @@ def encode_onehot(labels):
     return labels_onehot
 
 
+def load_steinerlib(name, labels_path, a):
+    filename = f"./data/{name}/{a}.stp"
+    num_nodes = []
+    edges = []
+    terminals = []
+    with open(labels_path,'r') as f:
+        data = [line.split(',') for line in f.readlines()]
+        names = [line[0] for line in data]
+        labels = [int(line[-1]) for line in data]
+        ind = names.index(a)
+        opt = labels[ind]
+        
+    with open(filename,'r') as f:
+        data = [line.rstrip('\n') for line in f.readlines()]
+        graph_start = data.index("SECTION Graph")+1
+        graph_end = data.index("END", graph_start)
+        terminals_start = data.index("SECTION Terminals")+1
+        terminals_end = data.index("END", terminals_start)
+        num_nodes = int(data[graph_start].split()[-1])
+        num_edges = int(data[graph_start+1].split()[-1])
+        num_terminals = int(data[terminals_start+1].split()[-1])
+        edges = []
+        terminals = []
+        for i in range(graph_start+2, graph_end):
+            _, v1, v2, w = data[i].split()
+            edges.append([int(v1),int(v2),int(w)])
+            edges.append([int(v2),int(v1),int(w)])
+        edges = np.array(edges)
+        
+        for i in range(terminals_start+2, terminals_end):
+            _, t = data[i].split()
+            terminals.append(int(t))
+
+
+        adj = sp.coo_matrix((edges[:,-1], (edges[:,0]-1,edges[:,1]-1)),
+                        shape=(num_nodes,num_nodes),
+                        dtype=np.float32)
+
+    return adj, opt
+
+
+def load_steiner(name):
+    filename = f"./data/{name}/{name.lower()}.txt"
+    res = []
+    with open(filename, 'r') as f:
+        while True:
+            cur = f.readline()
+            if not cur: break
+            cur, _, _, _, _, opt = cur.split(',')
+            datapath = f"./data/{name}/{cur}.stp"
+            res.append((name,filename,datapath,datapath,cur))
+    return res
+
+
 def load_datapath(flag):
     if flag==1:
         dataset = 'powerlawtree'
@@ -224,6 +278,22 @@ def compute_etable(adj):
         m += 1
     return etable, m
 
+
+def compute_ktable(adj,k):
+    # assumes graph is connected, with bidirectional edges
+    assert adj.row.min() == 0
+    n = adj.row.max() + 1
+    ktable = defaultdict(set)
+    for i in range(n): ktable[i]
+    dist_matrix = floyd_warshall(csr_matrix(adj),directed=False)
+    for i in range(n):
+        for j in range(n):
+            if dist_matrix[i][j]>k:
+                ktable[i].add(j)
+                ktable[j].add(i)
+    return ktable
+
+
 def compute_edge_mask(G):
     n = G.num_nodes()
     mask = torch.zeros(n*n) # for directed pairs of vertices
@@ -334,6 +404,72 @@ def compute_mvc_reward(set_vector, etable):
             local_best_ind, \
             local_best_panel, \
             local_max_reward
+
+def compute_bisect_reward(set_vector, etable):
+    PANEL = (len(etable))    
+    reward_vector = []
+    penal_vector = []
+    for i in range(len(set_vector)):
+        temp_panel = []
+        for index, value in enumerate(set_vector[i]):
+            if index == 0:
+                temp_panel = etable[value]
+            else:
+                temp_panel = temp_panel.intersection(etable[value])
+
+        # # fun4
+        M = len(temp_panel)
+        # if len(set_vector[i])> len(ntable)-2 or M != 0:
+        print(f"{M} unresolved edges")
+        temp_reward = -M
+        # temp_reward = 1. / (len(set_vector[i]) + PANEL * M)
+        # else:
+        #     temp_reward = 1. / (len(set_vector[i]))
+
+
+        reward_vector.append(temp_reward)
+        penal_vector.append(temp_panel)
+    local_max_reward = max(reward_vector)
+    local_best_ind = set_vector[reward_vector.index(local_max_reward)]
+    local_best_panel = penal_vector[reward_vector.index(local_max_reward)]
+
+    return reward_vector, \
+            penal_vector, \
+            local_best_ind, \
+            local_best_panel, \
+            local_max_reward
+
+
+def compute_dom_k_reward(set_vector, ktable):
+    PANEL = (len(ktable))    
+    reward_vector = []
+    penal_vector = []
+    for i in range(len(set_vector)):
+        temp_panel = set(range(PANEL))
+        
+        for index, value in enumerate(set_vector[i]):
+            temp_panel = temp_panel.intersection(ktable[value])
+
+        # # fun4
+        M = len(temp_panel)
+        # if len(set_vector[i])> len(ntable)-2 or M != 0:
+        temp_reward = 1. / (len(set_vector[i]) + PANEL * M)
+        # else:
+        #     temp_reward = 1. / (len(set_vector[i]))
+
+
+        reward_vector.append(temp_reward)
+        penal_vector.append(list(temp_panel)) # for serializing
+    local_max_reward = max(reward_vector)
+    local_best_ind = set_vector[reward_vector.index(local_max_reward)]
+    local_best_panel = penal_vector[reward_vector.index(local_max_reward)]
+
+    return reward_vector, \
+            penal_vector, \
+            local_best_ind, \
+            local_best_panel, \
+            local_max_reward
+
 
 def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     """Convert a scipy sparse matrix to a torch sparse tensor."""

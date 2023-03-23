@@ -8,11 +8,12 @@ from collections import defaultdict
 import json
 import time
 import os
-
+    
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--flag', type=int, required=True, help='flag')
-parser.add_argument('--task', type=str, required=True, choices=['mvc', 'mdp', 'dom_k'])
+parser.add_argument('--flag', type=int, required=False, help='flag')
+parser.add_argument('--task', type=str, required=True, choices=['mvc', 'mdp', 'dom_k', 'steiner'])
+parser.add_argument('--steiner_name', type=str, required=False)
 parser.add_argument('--k', type=int, required=False)
 
 args = parser.parse_args()
@@ -24,13 +25,24 @@ if os.path.exists(log_path):
 else:
     data = {'runs':[]}
 
-for i, (dataset, path, dataset1, dataset2, a) in enumerate(ut.load_datapath(flag)):
-    adj, ntable = ut.load_data_adj_ntable(path, dataset1, dataset2)   
-    n = len(ntable)
-    E = zip(adj.row, adj.col)
+if args.task == 'steiner':
+    load_iterable = ut.load_steiner(args.steiner_name)
+else:
+    load_iterable = ut.load_datapath(flag)
+
+for i, (dataset, path, dataset1, dataset2, a) in enumerate(load_iterable):
+
     dic = {}
     dic['a'] = a
-    dic['flag'] = flag
+    if args.task == 'steiner':
+        adj, dic['opt'] = ut.load_steinerlib(args.steiner_name, path, a)
+        dic['name'] = args.steiner_name
+    else:
+        adj, ntable = ut.load_data_adj_ntable(path, dataset1, dataset2)   
+        dic['flag'] = flag
+    n = adj.shape[0]
+    E = zip(adj.row, adj.col)    
+    
     if args.task == 'mvc':                 
         m = Model("mvc")
         x = [m.add_var(var_type=BINARY) for i in range(n)]
@@ -86,12 +98,15 @@ for i, (dataset, path, dataset1, dataset2, a) in enumerate(ut.load_datapath(flag
         dic['reward'] = 1/(len(selected) + len(temp_panel)*n)
         dic['time']= time_took
 
-    if status == OptimizationStatus.OPTIMAL:
-        print('optimal solution cost {} found'.format(m.objective_value))
-    elif status == OptimizationStatus.FEASIBLE:
-        print('sol.cost {} found, best possible: {}'.format(m.objective_value, m.objective_bound))
-    elif status == OptimizationStatus.NO_SOLUTION_FOUND:
-        print('no feasible solution found, lower bound is: {}'.format(m.objective_bound))
+    if args.task != 'steiner':
+        if status == OptimizationStatus.OPTIMAL:
+            print('optimal solution cost {} found'.format(m.objective_value))
+        elif status == OptimizationStatus.FEASIBLE:
+            print('sol.cost {} found, best possible: {}'.format(m.objective_value, m.objective_bound))
+        elif status == OptimizationStatus.NO_SOLUTION_FOUND:
+            print('no feasible solution found, lower bound is: {}'.format(m.objective_bound))
+    else:
+        print(dic)
 
     f = open(log_path, 'w+')
     data['runs'].append(dic)
