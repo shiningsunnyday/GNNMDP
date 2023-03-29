@@ -6,6 +6,9 @@ import json
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import floyd_warshall
 from tqdm import tqdm
+from multiprocessing import Pool
+import re
+import os
 
 NAMES = ['tree', 'gnm', 'gnp', 'cluster', 'rpg', 'watts']
 FLAG_D = {'tree': [10,9,8,7,6,5,4,3,2,1], 
@@ -51,6 +54,31 @@ def smooth(scalar, weight=0.85):
 
     return smoothed
 
+def fill_triangular(vec, dim, mode="lower"):
+    """Fill an lower or upper triangular matrices with given vectors"""
+#     num_examples, size = vec.shape
+#     assert size == dim * (dim + 1) // 2
+#     matrix = torch.zeros(num_examples, dim, dim).to(vec.device)
+#     if mode == "lower":
+#         idx = (torch.tril(torch.ones(dim, dim)) == 1)[None]
+#     elif mode == "upper":
+#         idx = (torch.triu(torch.ones(dim, dim)) == 1)[None]
+#     else:
+#         raise Exception("mode {} not recognized!".format(mode))
+#     idx = idx.repeat(num_examples,1,1)
+#     matrix[idx] = vec.contiguous().view(-1)
+    num_examples, size = vec.shape
+    assert size == dim * (dim + 1) // 2
+    if mode == "lower":
+        rows, cols = torch.tril_indices(dim, dim)
+    elif mode == "upper":
+        rows, cols = torch.triu_indices(dim, dim)
+    else:
+        raise Exception("mode {} not recognized!".format(mode))
+    matrix = torch.zeros(num_examples, dim, dim).type(vec.dtype).to(vec.device)
+    matrix[:, rows, cols] = vec
+    return matrix
+
 def encode_onehot(labels):
     classes = set(labels) # 打乱了顺序
     classes_dict = {c: np.identity(len(classes))[i, :] for i, c in
@@ -60,8 +88,7 @@ def encode_onehot(labels):
     return labels_onehot
 
 
-def load_steinerlib(name, labels_path, a):
-    filename = f"./data/{name}/{a}.stp"
+def load_steinerlib(filename, labels_path):
     num_nodes = []
     edges = []
     terminals = []
@@ -69,6 +96,7 @@ def load_steinerlib(name, labels_path, a):
         data = [line.split(',') for line in f.readlines()]
         names = [line[0] for line in data]
         labels = [int(line[-1]) for line in data]
+        a = filename.split('/')[-1].rstrip('.stp')
         ind = names.index(a)
         opt = labels[ind]
         
@@ -98,7 +126,7 @@ def load_steinerlib(name, labels_path, a):
                         shape=(num_nodes,num_nodes),
                         dtype=np.float32)
 
-    return adj, opt
+    return adj, terminals, opt
 
 
 def load_steiner(name):
@@ -113,6 +141,53 @@ def load_steiner(name):
             res.append((name,filename,datapath,datapath,cur))
     return res
 
+
+def check(dist_matrix, n, N):
+    res = set()
+    for i in range(N):
+        for j in range(i+1, N):
+            if dist_matrix[n][i] == dist_matrix[n][j]:
+                res.add(N*i+j)
+    # inds = inds[np.argwhere(dist_row[inds[:,0]] == dist_row[inds[:,1]]).flatten()]
+    # res += set((N*inds[:,0]+inds[:,1]).tolist())
+    return res
+
+def compute_ntable(adj):
+    N = adj.shape[0]
+    dist_matrix = floyd_warshall(csr_matrix(adj),directed=False)
+    p = Pool(8)
+    # inds = np.array([[i,j] for i in range(N) for j in range(N)])    
+    # pargs = [(dist_matrix[i], inds, i, N) for i in range(N)]
+    res = p.starmap(check, [(dist_matrix, i, N) for i in range(N)])
+    # res = []
+    # for parg in pargs:
+    #     res.append(check(*parg))
+    ntable = {}
+    for i, rset in enumerate(res):
+        ntable[i] = rset
+    return ntable
+
+def load_3sat(dataset1):
+    adj = np.genfromtxt(dataset1,dtype=np.str_)
+    n = int(re.search("adj_\d*",dataset1).group()[4:])
+    N = int(re.search("n=\d*",dataset1).group()[2:])
+    M = int(re.search("m=\d*",dataset1).group()[2:])
+    edges = adj[:,0:2]
+    weight = adj[:,-1]
+
+    idx = [str(i + 1) for i in range(n)]
+    idx_map = {j: i for i, j in enumerate(idx)}
+    edges = np.array(list(map(idx_map.get, edges.flatten())),
+                    dtype=np.int32).reshape(edges.shape)
+    adj = sp.coo_matrix((weight, (edges[:, 0], edges[:, 1])),
+                        shape=(n,n),
+                        dtype=np.float32)       
+    return n,N,M,adj
+
+def load_sat():
+    filename = f"./data/sat_to_mdp/3sat/uf20-91/"
+    return [(None,None,filename+fname,None,None) for fname in os.listdir(filename)]
+    
 
 def load_datapath(flag):
     if flag==1:
@@ -135,7 +210,9 @@ def load_datapath(flag):
     elif flag == 6:
         dataset = 'watts'
         d=[5,11,20,30,40,55,60,75,85,90]
-    
+    elif flag == 'uf20-91':
+        dataset = 'uf20-91'
+        d=[x.split('-')[-1].rstrip('.txt') for x in os.listdir("data/sat_to_mdp/3sat/uf20-91/")]
     ret = []
     for i in d:
         a = i
@@ -169,6 +246,11 @@ def load_datapath(flag):
             datapath = "data/random_watts/adj_natable/"
             dataset1 = "adj_100_{}_0.5.txt".format(a)
             dataset2 = "ntable_100_{}_0.5.txt".format(a)
+        elif flag == 'uf20-91':
+            # 3sat
+            datapath = "data/3sat/uf20-91/"
+            dataset1 = "uf20-{}.txt".format(a)
+            dataset2 = "uf20-{}_ntable.txt".format(a)            
         ret.append((dataset, datapath, dataset1, dataset2, a))
     return ret
 
@@ -292,6 +374,24 @@ def compute_ktable(adj,k):
                 ktable[i].add(j)
                 ktable[j].add(i)
     return ktable
+
+
+def compute_ttable(adj,T):
+    # assumes graph is connected, with bidirectional edges
+    assert adj.row.min() == 0
+    n = adj.row.max() + 1
+    adj = adj.toarray()
+    ttable = defaultdict(set)
+    for i in range(n):
+        for j in range(n):
+            if adj[i][j] == 0: continue
+            ttable[n*i+j] = set(T)
+            if i in ttable[n*i+j]:
+                ttable[n*i+j].remove(i)
+            if j in ttable[n*i+j]:
+                ttable[n*i+j].remove(j)
+
+    return ttable
 
 
 def compute_edge_mask(G):
@@ -454,6 +554,40 @@ def compute_dom_k_reward(set_vector, ktable):
         M = len(temp_panel)
         # if len(set_vector[i])> len(ntable)-2 or M != 0:
         temp_reward = 1. / (len(set_vector[i]) + PANEL * M)
+        # else:
+        #     temp_reward = 1. / (len(set_vector[i]))
+
+
+        reward_vector.append(temp_reward)
+        penal_vector.append(list(temp_panel)) # for serializing
+    local_max_reward = max(reward_vector)
+    local_best_ind = set_vector[reward_vector.index(local_max_reward)]
+    local_best_panel = penal_vector[reward_vector.index(local_max_reward)]
+
+    return reward_vector, \
+            penal_vector, \
+            local_best_ind, \
+            local_best_panel, \
+            local_max_reward
+
+def compute_steiner_reward(set_vector, ttable, adj):
+    PANEL = adj.shape[0]
+    reward_vector = []
+    penal_vector = []
+    for i in range(len(set_vector)):
+        temp_panel = set(range(PANEL))
+        
+        for index, value in enumerate(set_vector[i]):
+            temp_panel = temp_panel.intersection(ttable[value])
+
+        # # fun4
+        M = len(temp_panel)
+        # if len(set_vector[i])> len(ntable)-2 or M != 0:
+        W = 0.
+        for e in set_vector[i]:
+            i, j = e//PANEL, e%PANEL
+            W += adj[i,j]
+        temp_reward = -float("inf") if M else -W
         # else:
         #     temp_reward = 1. / (len(set_vector[i]))
 

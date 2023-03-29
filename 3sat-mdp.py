@@ -2,6 +2,8 @@ import argparse
 import pickle
 from pysat.solvers import Glucose3
 import numpy as np
+import glob
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--input_file',default="")
 parser.add_argument('--output_dir',default="")
@@ -9,12 +11,16 @@ args = parser.parse_args()
     
 def read_sat(f):
     clauses = []
+    to_read = False
     while True:
         line = f.readline()
         if not line: break
         if line.startswith("p cnf"):
+            to_read = True
             _, _, n, num_clauses = line.split()
-        else:
+        elif line.startswith("%"):
+            to_read = False
+        elif to_read:
             clauses.append(list(map(int, line.split()))[:-1])
 
     return int(n), int(num_clauses), clauses
@@ -105,10 +111,14 @@ def reduce_to_mdp(n, clauses):
 
     return n, m, adj             
 
-
+sat_file = args.input_file.split('/')[-1]
+sat_file = sat_file.split('.')[0]
+path = args.output_dir + f'{sat_file}_*'
+if glob.glob(path):
+    exit()
 
 with open(args.input_file, "r") as f:
-    n, num_clauses, sat_clauses = read_sat(f)  
+    n, num_clauses, sat_clauses = read_sat(f)      
     n, threesat_clauses = reduce_3sat(n, num_clauses, sat_clauses)
     g = Glucose3()
     for clause in threesat_clauses:
@@ -119,9 +129,7 @@ with open(args.input_file, "r") as f:
     
     n, m, mdp_adj = reduce_to_mdp(n, threesat_clauses)
 
-if args.output_dir:
-    sat_file = args.input_file.split('/')[-1]
-    path = args.output_dir + f'{sat_file}_adj_{6*n+5*m}_n={n}_m={m}.txt'
+if args.output_dir:    
     with open(path, "w+") as f:
         for i in range(mdp_adj.shape[0]):
             for j in range(mdp_adj.shape[1]):

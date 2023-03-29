@@ -1,9 +1,11 @@
 from mip import Model, xsum, minimize, BINARY, OptimizationStatus
 import numpy as np
+import scipy.sparse as sp
 from models import utils as ut
 import argparse 
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import floyd_warshall
+import re
 from collections import defaultdict
 import json
 import time
@@ -12,8 +14,7 @@ import os
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--flag', type=int, required=False, help='flag')
-parser.add_argument('--task', type=str, required=True, choices=['mvc', 'mdp', 'dom_k', 'steiner'])
-parser.add_argument('--steiner_name', type=str, required=False)
+parser.add_argument('--task', type=str, required=True, choices=['mvc', 'mdp', 'dom_k', 'steiner', '3sat'])
 parser.add_argument('--k', type=int, required=False)
 
 args = parser.parse_args()
@@ -26,7 +27,7 @@ else:
     data = {'runs':[]}
 
 if args.task == 'steiner':
-    load_iterable = ut.load_steiner(args.steiner_name)
+    load_iterable = ut.load_steiner(flag)
 else:
     load_iterable = ut.load_datapath(flag)
 
@@ -35,8 +36,10 @@ for i, (dataset, path, dataset1, dataset2, a) in enumerate(load_iterable):
     dic = {}
     dic['a'] = a
     if args.task == 'steiner':
-        adj, dic['opt'] = ut.load_steinerlib(args.steiner_name, path, a)
-        dic['name'] = args.steiner_name
+        adj, _, dic['opt'] = ut.load_steinerlib(flag, path, a)
+        dic['name'] = flag
+    elif args.task == '3sat':
+        n, N, M, adj = ut.load_3sat(dataset1) 
     else:
         adj, ntable = ut.load_data_adj_ntable(path, dataset1, dataset2)   
         dic['flag'] = flag
@@ -75,6 +78,8 @@ for i, (dataset, path, dataset1, dataset2, a) in enumerate(load_iterable):
         print(status)
     elif args.task == 'steiner':
         pass
+    elif args.task == '3sat':
+        dic['beta'] = N+M
     else:
         dist_matrix = floyd_warshall(csr_matrix(adj),directed=False)
         m = Model("mdp")
@@ -98,7 +103,7 @@ for i, (dataset, path, dataset1, dataset2, a) in enumerate(load_iterable):
         dic['reward'] = 1/(len(selected) + len(temp_panel)*n)
         dic['time']= time_took
 
-    if args.task != 'steiner':
+    if args.task not in ['steiner','3sat']:
         if status == OptimizationStatus.OPTIMAL:
             print('optimal solution cost {} found'.format(m.objective_value))
         elif status == OptimizationStatus.FEASIBLE:
