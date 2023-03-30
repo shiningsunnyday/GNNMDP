@@ -35,17 +35,20 @@ parser.add_argument('--noisy_size', type=int, default=16,
                     help='Number of batch size for training.')
 parser.add_argument('--dropout', type=float, default=0.0,
                     help='Dropout rate (1 - keep probability).')
-parser.add_argument('--algo', type=str, default='algo2', choices=['gnn-mdp','gnn-mvc','algo2'],help='gnn-mdp, gnn-mvc algorithm 2')
+parser.add_argument('--algo', type=str, default='algo2', choices=['gnn-mdp','gnn-mvc','gnn-dom_k','gnn-bisect','gnn-steiner','gnn-3sat','algo2'],help='gnn-mdp, gnn-mvc algorithm 2')
+parser.add_argument('--dom_k',type=int,default=10,help='k for k-distance dominating set')
 parser.add_argument('--mask_c', type=float, default=.5,help='tradeoff between loss and mask for gnn-mdp')
 parser.add_argument('--distmask_c', type=float, default=.5,help='tradeoff between score and k for do_omp baseline')
 parser.add_argument('--do_omp', type=bool, default=False,help='whether to do orthogonal matching pursuit instead of mask')
 parser.add_argument('--num_iters', type=int, default=3,help='num iterations')
 parser.add_argument('--gnn_model', type=str, default='gcn', help='gnn model', choices=['distmask', 'gcn','gin','sage','edge','tag','gine'])
 parser.add_argument('--num_hidden_layers', type=int, default=2, help='number of conv layers')
-parser.add_argument('--flag', type=int, required=True, help='flag')
+parser.add_argument('--flag', required=False, default='', help='flag (int) or dataset name for steiner trees')
 parser.add_argument('--suffix',type=str,default='',help='if non-empty, add suffix to log file to differentiate')
 
 args = parser.parse_args()
+if args.flag.isnumeric():
+    args.flag = int(args.flag)
 
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
@@ -84,8 +87,13 @@ def did_run(log_path, arg_dict):
 
 flag=args.flag
 
-for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(flag)):  
+if args.algo == 'gnn-steiner':
+    load_iterable = ut.load_steiner(args.flag)
+else:
+    load_iterable = ut.load_datapath(flag)
 
+for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(load_iterable):
+    
     arg_dict = args.__dict__
     arg_dict['a'] = a 
 
@@ -139,8 +147,14 @@ for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(
             algo = gs.gnn_mdp
         elif args.algo=='gnn-mvc':
             algo = gs.gnn_mvc
-        else:
-            raise
+        elif args.algo=='gnn-bisect':
+            algo = gs.gnn_bisect
+        elif args.algo=='gnn-steiner':
+            algo = gs.gnn_steiner
+        elif args.algo=='gnn-dom_k':
+            algo = gs.gnn_dom_k
+        elif args.algo=='gnn-3sat':
+            algo = gs.gnn_mdp
 
         if train:
             local_ave_time, local_reward_list, local_loss_list, local_best_ind, \
@@ -175,6 +189,7 @@ for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(
         plt.plot(local_reward_list, label="Reward")
         plt.xlabel('Episode')
         plt.ylabel('Reward')
+
         plt.title('Episode mean reward curve')
         plt.savefig(pathname + fig_output_filename1)
         plt.close()
@@ -223,6 +238,9 @@ for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(ut.load_datapath(
     f.write('global_dim ={}\n'.format(dim))
     f.write('resolving_set ={}\n'.format(str(r_set)))
     f.close()    
+
+    print('global_dim ={}\n'.format(dim))
+    print('resolving_set ={}\n'.format(str(r_set)))
     
     if os.path.exists(log_path):
         f = open(log_path, 'r')

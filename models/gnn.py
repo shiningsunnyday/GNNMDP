@@ -22,7 +22,7 @@ def classify(feats, y=None, do_mask=True, omp_rew=None):
             best_intercept = np.array([-best_intercept[0]/2, best_intercept[0]/2])
         return best_coef, best_intercept
 
-    if y == None:
+    if y is None:
         y = np.arange(len(feats))
     if do_mask:
         clf=LogisticRegression(max_iter=200).fit(feats,y)
@@ -155,7 +155,7 @@ class DistMask(nn.Module):
 # GCN layer base dgl
 class GCN(nn.Module):
     def __init__(self, in_feats, hid_feats, out_feats,num_layers,
-                 input_dim, hidden_dim, output_dim, num_hidden_layers=2, mask_c=.0):
+                 input_dim, hidden_dim, output_dim, num_hidden_layers=2, mask_c=.0,act='sigmoid'):
         super(GCN,self).__init__()
         self.in_feats = in_feats
         self.hid_feats = hid_feats
@@ -174,10 +174,11 @@ class GCN(nn.Module):
                                                 hid_feats if i < num_hidden_layers else out_feats, 
                                                 norm='both', weight=True, bias=True, activation=None, allow_zero_in_degree=False))
 
-        self.mlp = mlp.MLP(self.num_layers, self.input_dim, self.hidden_dim, self.output_dim)
+        self.mlp = mlp.MLP(self.num_layers, self.input_dim, self.hidden_dim, self.output_dim, act=act)
 
         if self.do_mask:            
             self.mask = nn.Embedding(output_dim,2,_weight=torch.log(torch.rand(output_dim,2)))
+            self.edge_mask = nn.Embedding(output_dim*output_dim,2,_weight=torch.log(torch.rand(output_dim*output_dim,2)))
             self.mask_c = mask_c
 
     def forward(self, graph, inputs):
@@ -190,9 +191,6 @@ class GCN(nn.Module):
                 h = F.dropout(h, 0.5, training=self.training)
 
             h = self.mlp(h)
-            if self.do_mask:
-                mask_ = F.gumbel_softmax(self.mask.weight,hard=True)[:, :1].T
-                h = h * mask_
         return h
 
     def mask_loss(self, output, epoch, edge_mask=None):
@@ -226,6 +224,59 @@ class GCN(nn.Module):
         # return loss 
         return loss + self.mask_c * mask_loss
 
+    def mvc_mask_loss(self, output, epoch, edge_mask):
+        """
+        Edge-identity prediction
+        param: edge_mask is indexed by (i,j) in row-major order
+        param: output is masked output from GNN
+        edge_features assumed to be one-hot vector encoded in same order
+        """
+            
+        # use masked nodes to predict all edge identities
+        cross_prod = list(product(output, output))            
+        output = torch.stack(list(map(lambda x: torch.cat(x), cross_prod)))
+        output_detach = output.clone().detach()
+        y = edge_mask.long()
+        sample_mask = ut.sample_mask(y)
+
+        best_coef, best_intercept = classify(output_detach[sample_mask], y[sample_mask])
+        best_coef = torch.from_numpy(best_coef).detach().float()        
+        best_intercept = torch.from_numpy(best_intercept).detach().float()        
+        loss = nn.CrossEntropyLoss()(output @ best_coef.T + best_intercept, y)
+        mask_loss = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1].sum()
+        # return mask_loss
+        # return self.mask_c * mask_loss
+        # return loss 
+        return loss + self.mask_c * mask_loss
+
+    def dom_k_mask_loss(self, output, k):
+        """        
+        """
+        output_detach = output.clone().detach()
+        mask_discrete = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1]
+        probs = F.relu(output_detach) * mask_discrete.T
+        loss = torch.norm(probs.sum(axis=-1)-1,p=2)
+        mask_loss = mask_discrete.sum()
+        return mask_loss
+        # return self.mask_c * mask_loss
+        # return loss 
+        return loss + self.mask_c * mask_loss
+    
+    def steiner_mask_loss(self, output, adj_inds):
+        """                
+        adj_inds: indices of upper-triangular edges
+        """
+        output_detach = output.clone().detach()
+        mask_discrete = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1]
+        probs = F.relu(output_detach) * mask_discrete.T
+        loss = torch.norm(probs.sum(axis=-1)-1,p=2)
+        mask_loss = mask_discrete.sum()
+        return mask_loss
+        # return self.mask_c * mask_loss
+        # return loss 
+        return loss + self.mask_c * mask_loss
+
+
     def decide_action(self, output, batch_size):
         set_vector = []
         temp1 = output.detach().numpy()
@@ -254,8 +305,8 @@ class GCN(nn.Module):
 
         return set_vector, set_indicator
 
-    def decide_action_mask(self, output, batch_size):
-        set_indicator = F.gumbel_softmax(self.mask.weight,hard=True)[:,:1]
+    def decide_action_mask(self, output, batch_size, set_indicator=None):
+        set_indicator = set_indicator if set_indicator != None else F.gumbel_softmax(self.mask.weight,hard=True)[:,:1]
         set_vector = []
         for i in range(batch_size):
             temp_set = []
@@ -263,6 +314,21 @@ class GCN(nn.Module):
                 if value == 1.:
                     temp_set.append(index)
             set_vector.append(temp_set)
+        return set_vector, set_indicator
+
+    def decide_edge_action_mask(self, output, batch_size, adj):
+        _, set_indicator = self.decide_action_mask(output,batch_size,F.gumbel_softmax(self.edge_mask.weight,hard=True)[:,:1])
+        n = adj.shape[0]
+        assert batch_size == set_indicator.shape[-1]
+        set_vector = []
+        for i in range(batch_size):
+            temp_vector = []
+            for e in range(len(set_indicator[:, i])):
+                if not adj[e//n,e%n]:
+                    set_indicator[e][i] = 0
+                if set_indicator[e][i]:
+                    temp_vector.append(e)
+            set_vector.append(temp_vector)
         return set_vector, set_indicator
 
     def loss(self, set_indicator, reward_vector, output, epoch):
