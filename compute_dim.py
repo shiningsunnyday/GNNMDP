@@ -38,6 +38,7 @@ parser.add_argument('--dropout', type=float, default=0.0,
 parser.add_argument('--algo', type=str, default='algo2', choices=['gnn-mdp','gnn-mvc','gnn-dom_k','gnn-bisect','gnn-steiner','gnn-3sat','algo2'],help='gnn-mdp, gnn-mvc algorithm 2')
 parser.add_argument('--dom_k',type=int,default=10,help='k for k-distance dominating set')
 parser.add_argument('--mask_c', type=float, default=.5,help='tradeoff between loss and mask for gnn-mdp')
+parser.add_argument('--do_time', action='store_true',help='time to get best epoch, instead of avg over epochs')
 parser.add_argument('--distmask_c', type=float, default=.5,help='tradeoff between score and k for do_omp baseline')
 parser.add_argument('--do_omp', type=bool, default=False,help='whether to do orthogonal matching pursuit instead of mask')
 parser.add_argument('--num_iters', type=int, default=3,help='num iterations')
@@ -260,6 +261,7 @@ for _, (dataset, datapath, dataset1, dataset2, a) in enumerate(load_iterable):
     dic['global_loss_list'] = global_loss_list
     dic['global_dim_opt'] = dim
     dic['resolving_set_opt'] = r_set
+    dic['time_list'] = time_list
 
     f = open(log_path, 'w+')
     data['runs'].append(dic)

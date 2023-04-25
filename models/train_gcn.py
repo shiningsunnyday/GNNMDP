@@ -140,6 +140,7 @@ def train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=True):
     global_max_reward = -(node_num - 1)
 
     start = time.time()
+    use_time = 0.
 
     for epoch in range(1,args.epochs+1):
         print('Train and solve: ',epoch)
@@ -178,6 +179,7 @@ def train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=True):
         episode_origin_mean_reward.append(np.mean(reward_vector))
         # 记录最优个体与最优值
         if global_max_reward < local_best_reward and len(local_best_panel) == 0:  # 记录全局最好信息
+            use_time = time.time() - start
             global_max_reward = local_best_reward
             global_best_ind = local_best_ind
             global_best_ind_panel_set = local_best_panel
@@ -206,15 +208,18 @@ def train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=True):
             scheduler.step()
         lp = model.loss(set_indicator, new_reward_vector, output.detach(),epoch)[1].detach()
         episode_loss.append(lp.item())
-
-    use_time = time.time()-start
-    ave_time = use_time / args.epochs
+    
+    if args.do_time:
+        ret_time = use_time
+    else:
+        use_time = time.time()-start
+        ret_time = use_time / args.epochs
 
     if train:
-        return ave_time, episode_origin_mean_reward,episode_loss,global_best_ind,\
+        return ret_time, episode_origin_mean_reward,episode_loss,global_best_ind,\
                global_best_ind_panel_set, global_max_reward,best_state
     else:
-        return ave_time, episode_origin_mean_reward, episode_loss, global_best_ind, \
+        return ret_time, episode_origin_mean_reward, episode_loss, global_best_ind, \
                global_best_ind_panel_set, global_max_reward
 
 

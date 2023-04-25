@@ -9,7 +9,7 @@ do
     for flag in $flags
     do
 	echo $gnn
-	python compute_dim.py --batch_size 1 --mask_c 3.0 --algo gnn-mdp --flag $flag --lr $lr --epochs 1000 --num_iters 1 --gnn_model $gnn --suffix $gnn
+	python compute_dim.py --batch_size 1 --mask_c 3.0 --algo gnn-mdp --flag $flag --lr $lr --epochs 1000 --num_iters 1 --gnn_model $gnn --suffix time-$gnn
     done
 done
 
