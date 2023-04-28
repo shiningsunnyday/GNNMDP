@@ -122,6 +122,7 @@ def train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=True):
     for i in range(len(ntable)):
         nr_degree.append(len(ntable[i]))
     nr_degree = torch.tensor(nr_degree).reshape(-1,1)
+    model.nr_degree = nr_degree
     # nr_degree = torch.softmax(nr_degree,dim=0)
     # print(nr_degree)
     # degree = G.in_degrees().reshape(-1, 1)
@@ -165,20 +166,16 @@ def train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=True):
         # determine membership set_vector
         set_vector, set_indicator = model.decide_action_mask(output, args.batch_size)
 
-        print(set_indicator.sum())
 
         reward_vector, \
         penal_vector, \
         local_best_ind, \
         local_best_panel, \
         local_best_reward = ut.reward(set_vector, ntable)
-        print(local_best_reward)
-        print("global:",global_max_reward)
-        print("global ind:",global_best_ind)
 
         episode_origin_mean_reward.append(np.mean(reward_vector))
         # 记录最优个体与最优值
-        if global_max_reward < local_best_reward and len(local_best_panel) < len(global_best_ind_panel_set):  # 记录全局最好信息
+        if (len(local_best_panel) == 0 and len(global_best_ind_panel_set) > 0) or global_max_reward < local_best_reward:  # 记录全局最好信息
             global_max_reward = local_best_reward
             global_best_ind = local_best_ind
             global_best_ind_panel_set = local_best_panel
@@ -196,6 +193,12 @@ def train_gnn_mdp(args,model,ntable,G,optimizer=None,scheduler=None,train=True):
         # global_panel_set.append(global_best_ind_panel_set)
         # global_rewards.append(global_max_reward)
         # global_ind.append(global_best_ind)
+        
+        print(local_best_reward)
+        print("global:",global_max_reward)
+        print("len(global ind):",len(global_best_ind))
+        print("len(global_ind_panel_set):",len(global_best_ind_panel_set))
+        
         new_reward_vector = torch.FloatTensor(reward_vector)
         # reward_new = new_reward_vector
 
@@ -272,7 +275,7 @@ def train_gnn_mvc(args,model,etable,G,optimizer=None,scheduler=None,train=True):
 
         episode_origin_mean_reward.append(np.mean(reward_vector))
         # 记录最优个体与最优值
-        if global_max_reward < local_best_reward and len(local_best_panel) == 0:  # 记录全局最好信息
+        if len(local_best_panel) == 0 and len(global_best_ind_panel_set) > 0 or global_max_reward < local_best_reward:  # 记录全局最好信息
             global_max_reward = local_best_reward
             global_best_ind = local_best_ind
             global_best_ind_panel_set = local_best_panel

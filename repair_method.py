@@ -3,8 +3,7 @@ import numpy as np
 
 def repair(args,resolving_set,ntable):
     temp_set = resolving_set.copy()
-    p = np.random.choice(range(len(temp_set)))
-    temp_set.pop(p)
+    temp_set.pop()
     temp_panel = []
     for index, value in enumerate(temp_set):
         if index == 0:
